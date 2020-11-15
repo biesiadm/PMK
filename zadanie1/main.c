@@ -34,16 +34,16 @@
 
 // CR1
 
-  // Tryb pracy
+// Tryb pracy
 #define USART_Mode_Rx_Tx (USART_CR1_RE | \
                           USART_CR1_TE)
 #define USART_Enable     USART_CR1_UE
 
-  // Przesyłane słowo to dane łącznie z ewentualnym bitem parzystości
+// Przesyłane słowo to dane łącznie z ewentualnym bitem parzystości
 #define USART_WordLength_8b 0x0000
 #define USART_WordLength_9b USART_CR1_M
 
-  // Bit parzystości
+// Bit parzystości
 #define USART_Parity_No   0x0000
 #define USART_Parity_Even USART_CR1_PCE
 #define USART_Parity_Odd  (USART_CR1_PCE | \
@@ -51,7 +51,7 @@
 
 // CR2
 
-  // Bity stopu
+// Bity stopu
 #define USART_StopBits_1   0x0000
 #define USART_StopBits_0_5 0x1000
 #define USART_StopBits_2   0x2000
@@ -59,19 +59,18 @@
 
 // CR3
 
-  // Sterowanie przepływem
+// Sterowanie przepływem
 #define USART_FlowControl_None 0x0000
 #define USART_FlowControl_RTS  USART_CR3_RTSE
 #define USART_FlowControl_CTS  USART_CR3_CTSE
 
 // BRR
 
-  // Po włączeniu mikrokontroler STM32F411 jest taktowany wewnętrznym generatorem RC HSI (ang.High SpeedInternal) o częstotliwości 16 MHz
+// Po włączeniu mikrokontroler STM32F411 jest taktowany wewnętrznym generatorem RC HSI (ang.High SpeedInternal) o częstotliwości 16 MHz
 #define HSI_HZ 16000000U
 
-  // UkładUART2 jest taktowany zegarem PCLK1, który powłączeniu mikrokontrolera jest zegarem HSI
+// UkładUART2 jest taktowany zegarem PCLK1, który powłączeniu mikrokontrolera jest zegarem HSI
 #define PCLK1_HZ HSI_HZ
-
 
 static inline void RedLEDon() {
   RED_LED_GPIO->BSRR = 1 << (RED_LED_PIN + 16);
@@ -105,8 +104,6 @@ static inline void Green2LEDoff() {
   GREEN2_LED_GPIO->BSRR = 1 << (GREEN2_LED_PIN + 16);
 }
 
-
-
 static inline int AtModeButtonCheck() {
   return (AT_MODE_BUTTON_GPIO->IDR & (1 << AT_MODE_BUTTON_PIN));
 }
@@ -135,11 +132,10 @@ static inline int JoystickActionCheck() {
   return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_ACTION_PIN));
 }
 
-
 void set_clock() {
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
-                  RCC_AHB1ENR_GPIOBEN |
-                  RCC_AHB1ENR_GPIOCEN;
+      RCC_AHB1ENR_GPIOBEN |
+      RCC_AHB1ENR_GPIOCEN;
 
   // Włączamy taktowanie odpowiednich układów peryferyjnych
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
@@ -166,8 +162,8 @@ void basic_configuration() {
 
   // Przykładowa konfiguracja (układ pozostaje nieaktywny – nie ustawiamy bitu USART_Enable)
   USART2->CR1 = USART_Mode_Rx_Tx |
-                USART_WordLength_8b |
-                USART_Parity_No;
+      USART_WordLength_8b |
+      USART_Parity_No;
 
   USART2->CR2 = USART_StopBits_1;
 
@@ -175,7 +171,7 @@ void basic_configuration() {
 
   uint32_t const baudrate = 9600U;
   USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
-                baudrate;
+      baudrate;
 
 
   // Ustawiamy bit UE w rejestrze CR1
@@ -301,8 +297,7 @@ void check_command(char *color, char *state, char curr, int *pos) {
           curr == CMD_GREEN2) {
         *color = curr;
         (*pos)++;
-      }
-      else {
+      } else {
         *pos = CMD_PREFIX_POS;
       }
 
@@ -313,8 +308,7 @@ void check_command(char *color, char *state, char curr, int *pos) {
           curr == CMD_STATE_TOGGLE) {
         *state = curr;
         (*pos)++;
-      }
-      else {
+      } else {
         *pos = CMD_PREFIX_POS;
       }
 
@@ -322,7 +316,11 @@ void check_command(char *color, char *state, char curr, int *pos) {
   }
 }
 
-void execute_cmd_color(char state, int *states, int state_pos, void (*led_on)(), void (*led_off)()) {
+void execute_cmd_color(char state,
+                       int *states,
+                       int state_pos,
+                       void (*led_on)(),
+                       void (*led_off)()) {
   switch (state) {
     case CMD_STATE_ON:
       (*led_on)();
@@ -338,8 +336,7 @@ void execute_cmd_color(char state, int *states, int state_pos, void (*led_on)(),
       if (states[state_pos]) {
         (*led_off)();
         states[state_pos] = STATE_OFF;
-      }
-      else {
+      } else {
         (*led_on)();
         states[state_pos] = STATE_ON;
       }
@@ -379,27 +376,26 @@ static const int JOYSTICK_UP_POS = 4;
 static const int JOYSTICK_DOWN_POS = 5;
 static const int JOYSTICK_ACTION_POS = 6;
 
+static const char *LEFT_PRESSED = "LEFT PRESSED\r\n";
+static const char *LEFT_RELEASED = "LEFT RELEASED\r\n";
 
-static const char* LEFT_PRESSED = "LEFT PRESSED\r\n";
-static const char* LEFT_RELEASED = "LEFT RELEASED\r\n";
+static const char *RIGHT_PRESSED = "RIGHT PRESSED\r\n";
+static const char *RIGHT_RELEASED = "RIGHT RELEASED\r\n";
 
-static const char* RIGHT_PRESSED = "RIGHT PRESSED\r\n";
-static const char* RIGHT_RELEASED = "RIGHT RELEASED\r\n";
+static const char *UP_PRESSED = "UP PRESSED\r\n";
+static const char *UP_RELEASED = "UP RELEASED\r\n";
 
-static const char* UP_PRESSED = "UP PRESSED\r\n";
-static const char* UP_RELEASED = "UP RELEASED\r\n";
+static const char *DOWN_PRESSED = "DOWN PRESSED\r\n";
+static const char *DOWN_RELEASED = "DOWN RELEASED\r\n";
 
-static const char* DOWN_PRESSED = "DOWN PRESSED\r\n";
-static const char* DOWN_RELEASED = "DOWN RELEASED\r\n";
+static const char *FIRE_PRESSED = "FIRE PRESSED\r\n";
+static const char *FIRE_RELEASED = "FIRE RELEASED\r\n";
 
-static const char* FIRE_PRESSED = "FIRE PRESSED\r\n";
-static const char* FIRE_RELEASED = "FIRE RELEASED\r\n";
+static const char *USER_PRESSED = "USER PRESSED\r\n";
+static const char *USER_RELEASED = "USER RELEASED\r\n";
 
-static const char* USER_PRESSED = "USER PRESSED\r\n";
-static const char* USER_RELEASED = "USER RELEASED\r\n";
-
-static const char* MODE_PRESET = "MODE PRESET\r\n";
-static const char* MODE_RELEASED = "MODE RELEASED\r\n";
+static const char *MODE_PRESET = "MODE PRESET\r\n";
+static const char *MODE_RELEASED = "MODE RELEASED\r\n";
 
 void fill_buffer(char *buffer, int *end, const char *msg) {
   for (int i = 0; i < strlen(msg); i++) {
@@ -410,8 +406,8 @@ void fill_buffer(char *buffer, int *end, const char *msg) {
 }
 
 void check_button(char *buffer, int *end, int *buttons_states,
-                  int (*button_state)(), int button_pos, const char *pressed_msg,
-                  const char *relased_msg) {
+                  int (*button_state)(), int button_pos,
+                  const char *pressed_msg, const char *relased_msg) {
   int curr_state = RELEASED;
 
   if ((curr_state = (*button_state)()) != buttons_states[button_pos]) {
@@ -419,8 +415,7 @@ void check_button(char *buffer, int *end, int *buttons_states,
 
     if (curr_state) {
       fill_buffer(buffer, end, pressed_msg);
-    }
-    else {
+    } else {
       fill_buffer(buffer, end, relased_msg);
     }
   }
@@ -448,7 +443,6 @@ void check_buttons(char *buffer, int *end, int *buttons_states) {
   check_button(buffer, end, buttons_states, AtModeButtonCheck,
                AT_MODE_BUTTON_POS, MODE_PRESET, MODE_RELEASED);
 }
-
 
 int main() {
   set_clock();
@@ -488,8 +482,8 @@ int main() {
       check_command(&color, &state, c, &pos);
 
       if (pos == CMD_COMPLETE_POS) {
-       execute_command(color, state, states);
-       pos = CMD_PREFIX_POS;
+        execute_command(color, state, states);
+        pos = CMD_PREFIX_POS;
       }
     }
 
@@ -497,9 +491,9 @@ int main() {
 
     if (USART2->SR & USART_SR_TXE) {
       if (to_send_start != to_send_end) {
-       USART2->DR = to_send[to_send_start++];
+        USART2->DR = to_send[to_send_start++];
 
-       to_send_start %= BUFF_SIZE;
+        to_send_start %= BUFF_SIZE;
       }
     }
   }
