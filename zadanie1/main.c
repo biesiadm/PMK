@@ -1,6 +1,7 @@
 #include <delay.h>
 #include <gpio.h>
 #include <stm32.h>
+#include <string.h>
 
 
 // Leds
@@ -104,11 +105,159 @@ static inline void Green2LEDoff() {
   GREEN2_LED_GPIO->BSRR = 1 << (GREEN2_LED_PIN + 16);
 }
 
-static inline int UserButtonCheck() {
+
+
+static inline int AtModeButtonCheck() {
   return (AT_MODE_BUTTON_GPIO->IDR & (1 << AT_MODE_BUTTON_PIN));
 }
 
+static inline int UserButtonCheck() {
+  return !(USER_BUTTON_GPIO->IDR & (1 << USER_BUTTON_PIN));
+}
 
+static inline int JoystickDownCheck() {
+  return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_DOWN_PIN));
+}
+
+static inline int JoystickUpCheck() {
+  return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_UP_PIN));
+}
+
+static inline int JoystickLeftCheck() {
+  return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_LEFT_PIN));
+}
+
+static inline int JoystickRightCheck() {
+  return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_RIGHT_PIN));
+}
+
+static inline int JoystickActionCheck() {
+  return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_ACTION_PIN));
+}
+
+
+void set_clock() {
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
+                  RCC_AHB1ENR_GPIOBEN |
+                  RCC_AHB1ENR_GPIOCEN;
+
+  // Włączamy taktowanie odpowiednich układów peryferyjnych
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+
+}
+
+void basic_configuration() {
+  // Konfiguracja linii TXD
+  GPIOafConfigure(GPIOA,
+                  2,
+                  GPIO_OType_PP,
+                  GPIO_Fast_Speed,
+                  GPIO_PuPd_NOPULL,
+                  GPIO_AF_USART2);
+
+  // Konfiguracja linii RXD
+  GPIOafConfigure(GPIOA,
+                  3,
+                  GPIO_OType_PP,
+                  GPIO_Fast_Speed,
+                  GPIO_PuPd_UP,
+                  GPIO_AF_USART2);
+
+  // Przykładowa konfiguracja (układ pozostaje nieaktywny – nie ustawiamy bitu USART_Enable)
+  USART2->CR1 = USART_Mode_Rx_Tx |
+                USART_WordLength_8b |
+                USART_Parity_No;
+
+  USART2->CR2 = USART_StopBits_1;
+
+  USART2->CR3 = USART_FlowControl_None;
+
+  uint32_t const baudrate = 9600U;
+  USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
+                baudrate;
+
+
+  // Ustawiamy bit UE w rejestrze CR1
+  USART2->CR1 |= USART_Enable;
+}
+
+void all_leds_off() {
+  RedLEDoff();
+  GreenLEDoff();
+  BlueLEDoff();
+  Green2LEDoff();
+}
+
+void configurate_leds() {
+  GPIOoutConfigure(RED_LED_GPIO,
+                   RED_LED_PIN,
+                   GPIO_OType_PP,
+                   GPIO_Low_Speed,
+                   GPIO_PuPd_NOPULL);
+
+  GPIOoutConfigure(GREEN_LED_GPIO,
+                   GREEN_LED_PIN,
+                   GPIO_OType_PP,
+                   GPIO_Low_Speed,
+                   GPIO_PuPd_NOPULL);
+
+  GPIOoutConfigure(BLUE_LED_GPIO,
+                   BLUE_LED_PIN,
+                   GPIO_OType_PP,
+                   GPIO_Low_Speed,
+                   GPIO_PuPd_NOPULL);
+
+  GPIOoutConfigure(GREEN2_LED_GPIO,
+                   GREEN2_LED_PIN,
+                   GPIO_OType_PP,
+                   GPIO_Low_Speed,
+                   GPIO_PuPd_NOPULL);
+}
+
+void configurate_buttons() {
+  GPIOinConfigure(AT_MODE_BUTTON_GPIO,
+                  AT_MODE_BUTTON_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(USER_BUTTON_GPIO,
+                  USER_BUTTON_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_DOWN_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_UP_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_RIGHT_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_LEFT_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_ACTION_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Event,
+                  EXTI_Trigger_Irrelevant);
+}
 
 static const char INITIALISE = ' ';
 
@@ -216,393 +365,142 @@ void execute_command(char color, char state, int *states) {
   }
 }
 
+static const int BUFF_SIZE = 1024;
+static const int BUFF_INIT = 0;
+static const int BUTTONS_NUMBER = 7;
+
+static const int RELEASED = 0;
+
+static const int USER_BUTTON_POS = 0;
+static const int AT_MODE_BUTTON_POS = 1;
+static const int JOYSTICK_LEFT_POS = 2;
+static const int JOYSTICK_RIGHT_POS = 3;
+static const int JOYSTICK_UP_POS = 4;
+static const int JOYSTICK_DOWN_POS = 5;
+static const int JOYSTICK_ACTION_POS = 6;
+
+
+static const char* LEFT_PRESSED = "LEFT PRESSED\r\n";
+static const char* LEFT_RELEASED = "LEFT RELEASED\r\n";
+
+static const char* RIGHT_PRESSED = "RIGHT PRESSED\r\n";
+static const char* RIGHT_RELEASED = "RIGHT RELEASED\r\n";
+
+static const char* UP_PRESSED = "UP PRESSED\r\n";
+static const char* UP_RELEASED = "UP RELEASED\r\n";
+
+static const char* DOWN_PRESSED = "DOWN PRESSED\r\n";
+static const char* DOWN_RELEASED = "DOWN RELEASED\r\n";
+
+static const char* FIRE_PRESSED = "FIRE PRESSED\r\n";
+static const char* FIRE_RELEASED = "FIRE RELEASED\r\n";
+
+static const char* USER_PRESSED = "USER PRESSED\r\n";
+static const char* USER_RELEASED = "USER RELEASED\r\n";
+
+static const char* MODE_PRESET = "MODE PRESET\r\n";
+static const char* MODE_RELEASED = "MODE RELEASED\r\n";
+
+void fill_buffer(char *buffer, int *end, const char *msg) {
+  for (int i = 0; i < strlen(msg); i++) {
+    buffer[(*end)++] = msg[i];
+
+    *end %= BUFF_SIZE;
+  }
+}
+
+void check_button(char *buffer, int *end, int *buttons_states,
+                  int (*button_state)(), int button_pos, const char *pressed_msg,
+                  const char *relased_msg) {
+  int curr_state = RELEASED;
+
+  if ((curr_state = (*button_state)()) != buttons_states[button_pos]) {
+    buttons_states[button_pos] = curr_state;
+
+    if (curr_state) {
+      fill_buffer(buffer, end, pressed_msg);
+    }
+    else {
+      fill_buffer(buffer, end, relased_msg);
+    }
+  }
+}
+
+void check_buttons(char *buffer, int *end, int *buttons_states) {
+  check_button(buffer, end, buttons_states, JoystickLeftCheck,
+               JOYSTICK_LEFT_POS, LEFT_PRESSED, LEFT_RELEASED);
+
+  check_button(buffer, end, buttons_states, JoystickRightCheck,
+               JOYSTICK_RIGHT_POS, RIGHT_PRESSED, RIGHT_RELEASED);
+
+  check_button(buffer, end, buttons_states, JoystickUpCheck,
+               JOYSTICK_UP_POS, UP_PRESSED, UP_RELEASED);
+
+  check_button(buffer, end, buttons_states, JoystickDownCheck,
+               JOYSTICK_DOWN_POS, DOWN_PRESSED, DOWN_RELEASED);
+
+  check_button(buffer, end, buttons_states, JoystickActionCheck,
+               JOYSTICK_ACTION_POS, FIRE_PRESSED, FIRE_RELEASED);
+
+  check_button(buffer, end, buttons_states, UserButtonCheck,
+               USER_BUTTON_POS, USER_PRESSED, USER_RELEASED);
+
+  check_button(buffer, end, buttons_states, AtModeButtonCheck,
+               AT_MODE_BUTTON_POS, MODE_PRESET, MODE_RELEASED);
+}
+
 
 int main() {
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
-                  RCC_AHB1ENR_GPIOBEN;
-
-//********************************************
-
-  // Włączamy taktowanie odpowiednich układów peryferyjnych
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
-  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-
-//********************************************
-
-  // Konfiguracja linii TXD
-  GPIOafConfigure(GPIOA,
-                  2,
-                  GPIO_OType_PP,
-                  GPIO_Fast_Speed,
-                  GPIO_PuPd_NOPULL,
-                  GPIO_AF_USART2);
-
-  // Konfiguracja linii RXD
-  GPIOafConfigure(GPIOA,
-                  3,
-                  GPIO_OType_PP,
-                  GPIO_Fast_Speed,
-                  GPIO_PuPd_UP,
-                  GPIO_AF_USART2);
-
-  // Przykładowa konfiguracja (układ pozostaje nieaktywny – nie ustawiamy bitu USART_Enable)
-  USART2->CR1 = USART_Mode_Rx_Tx |
-                USART_WordLength_8b |
-                USART_Parity_No;
-
-  USART2->CR2 = USART_StopBits_1;
-
-  USART2->CR3 = USART_FlowControl_None;
-
-  uint32_t const baudrate = 9600U;
-  USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
-                baudrate;
-
-
-  // Ustawiamy bit UE w rejestrze CR1
-  USART2->CR1 |= USART_Enable;
-
+  set_clock();
+  basic_configuration();
 
   __NOP();
 
-  RedLEDoff();
-  GreenLEDoff();
-  BlueLEDoff();
-  Green2LEDoff();
+  all_leds_off();
 
-  GPIOoutConfigure(RED_LED_GPIO,
-                   RED_LED_PIN,
-                   GPIO_OType_PP,
-                   GPIO_Low_Speed,
-                   GPIO_PuPd_NOPULL);
-
-  GPIOoutConfigure(GREEN_LED_GPIO,
-                   GREEN_LED_PIN,
-                   GPIO_OType_PP,
-                   GPIO_Low_Speed,
-                   GPIO_PuPd_NOPULL);
-
-  GPIOoutConfigure(BLUE_LED_GPIO,
-                   BLUE_LED_PIN,
-                   GPIO_OType_PP,
-                   GPIO_Low_Speed,
-                   GPIO_PuPd_NOPULL);
-
-  GPIOoutConfigure(GREEN2_LED_GPIO,
-                   GREEN2_LED_PIN,
-                   GPIO_OType_PP,
-                   GPIO_Low_Speed,
-                   GPIO_PuPd_NOPULL);
-
-  // GPIOinConfigure(USER_BUTTON_GPIO,
-  //                 USER_BUTTON_PIN,
-  //                 GPIO_PuPd_DOWN,
-  //                 EXTI_Mode_Event,
-  //                 EXTI_Trigger_Irrelevant);
-
-  // GPIOoutConfigure(AT_MODE_BUTTON_GPIO,
-  //                  AT_MODE_BUTTON_PIN,
-  //                  GPIO_OType_PP,
-  //                  GPIO_Fast_Speed,
-  //                  GPIO_PuPd_DOWN);
-
-
-  GPIOinConfigure(AT_MODE_BUTTON_GPIO,
-                  AT_MODE_BUTTON_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
+  configurate_leds();
+  configurate_buttons();
 
   char color = INITIALISE;
   char state = INITIALISE;
-  int states[NUMBER_OF_COLORS];
+  char c = INITIALISE;
   int pos = CMD_PREFIX_POS;
+
+  int states[NUMBER_OF_COLORS];
 
   for (int i = 0; i < NUMBER_OF_COLORS; i++) {
     states[i] = STATE_OFF;
   }
 
-  char c = INITIALISE;
+  char to_send[BUFF_SIZE];
+  int to_send_start = BUFF_INIT;
+  int to_send_end = BUFF_INIT;
 
-  for (;;) {
-     if (USART2->SR & USART_SR_RXNE) {
-         c = USART2->DR;
-         check_command(&color, &state, c, &pos);
+  int buttons_states[BUTTONS_NUMBER];
 
-         if (pos == CMD_COMPLETE_POS) {
-           execute_command(color, state, states);
-           pos = CMD_PREFIX_POS;
-         }
-
-     }
-     if (USART2->SR & USART_SR_TXE) {
-       if (UserButtonCheck()) {
-         USART2->DR = (char) c + 1;
-       }
-     }
+  for (int i = 0; i < BUTTONS_NUMBER; i++) {
+    buttons_states[i] = RELEASED;
   }
 
-  // for (;;) {
-  //   RedLEDon();
-  //   Delay(4000000);
-  //   RedLEDoff();
-  //   GreenLEDon();
-  //   Delay(4000000);
-  //   GreenLEDoff();
-  //   BlueLEDon();
-  //   Delay(4000000);
-  //   BlueLEDoff();
-  //   Green2LEDon();
-  //   Delay(4000000);
-  //   Green2LEDoff();
-  // }
+  for (;;) {
+    if (USART2->SR & USART_SR_RXNE) {
+      c = USART2->DR;
+      check_command(&color, &state, c, &pos);
+
+      if (pos == CMD_COMPLETE_POS) {
+       execute_command(color, state, states);
+       pos = CMD_PREFIX_POS;
+      }
+    }
+
+    check_buttons(to_send, &to_send_end, buttons_states);
+
+    if (USART2->SR & USART_SR_TXE) {
+      if (to_send_start != to_send_end) {
+       USART2->DR = to_send[to_send_start++];
+
+       to_send_start %= BUFF_SIZE;
+      }
+    }
+  }
 }
-
-
-////////////////////////////////////////////
-/*              PRINTF START              */
-////////////////////////////////////////////
-
-// #include <errno.h>
-// #include <stdio.h>
-// #include <string.h>
-// #include <unistd.h>
-// #include <sys/stat.h>
-//
-//
-//   /* Function used by C memory allocator */
-// caddr_t _sbrk(int incr) {
-//   register char *stack_ptr asm("sp"); /* Just stack pointer register name */
-//   extern char end; /* First free memory location, defined in linker script */
-//   static char *heap_end;
-//   char *prev_heap_end;
-//
-//   if (heap_end == NULL)
-//     heap_end = &end;
-//
-//   if (heap_end + incr > stack_ptr) {
-//     /* Some of the libstdc++-v3 tests rely upon detecting
-//        out of memory errors, so do not abort here.  */
-//     errno = ENOMEM;
-//     return (caddr_t)-1;
-//   }
-//
-//   prev_heap_end = heap_end;
-//   heap_end += incr;
-//
-//   errno = 0;
-//   return (caddr_t)prev_heap_end;
-// }
-//
-//
-// long _read(int fd, char *ptr, long len) {
-//   if (ptr == 0 || len <= 0) {
-//     errno = EINVAL; return -1;
-//   }
-//   else if (fd == STDIN_FILENO) {
-//     while (!(USART2->SR & USART_SR_RXNE));
-//       *ptr = USART2->DR;
-//       errno = 0; return 1;
-//   }
-//   else {
-//     errno = EBADF; return -1;
-//   }
-// }
-//
-// long _write(int fd, char const *ptr, long len) {
-//   long tmp = len;
-//   if (ptr == 0 || len < 0) {
-//     errno = EINVAL; return -1;
-//   }
-//   else if (fd == STDOUT_FILENO ||fd == STDERR_FILENO) {
-//     while (tmp--) {
-//       while (!(USART2->SR & USART_SR_TXE));
-//       USART2->DR = *ptr++;
-//     }
-//
-//     errno = 0; return len;
-//   }
-//   else {
-//     errno = EBADF; return -1;
-//   }
-// }
-//
-// int _fstat(int fd, struct stat *st) {
-//   if (st == 0) {
-//     errno = EINVAL; return -1;
-//   }
-//   else if (fd == STDIN_FILENO ||
-//            fd == STDOUT_FILENO ||
-//            fd == STDERR_FILENO) {
-//     memset(st, 0, sizeof(struct stat));
-//     st->st_mode = S_IFCHR | 0666;
-//     errno = 0; return 0;
-//   }
-//   else {
-//     errno = EBADF; return -1;
-//   }
-// }
-//
-// long _lseek(int fd, long offset, int whence) {
-//   errno = 0; return 0;
-// }
-//
-// int _isatty(int fd) {
-//   errno = 0;
-//   return fd == STDIN_FILENO  ||
-//   fd == STDOUT_FILENO ||
-//   fd == STDERR_FILENO;
-// }
-//
-// int _close(int fd) {
-//   errno = 0; return 0;
-// }
-//
-// int _open(const char *path, int flags, ...) {
-//   if (strncmp(path, "tty", 3) == 0) {
-//     init_usart();
-//     errno = 0; return STDOUT_FILENO;
-//   }
-//   else {
-//     errno = EACCES; return -1;
-//   }
-// }
-//
-//
-// int main() {
-//   fopen("tty", "w");
-//   printf("Hello world\n");
-//
-//   for(;;);
-// }
-
-//////////////////////////////////////////
-/*              PRINTF END              */
-//////////////////////////////////////////
-
-// #define RedLEDon()     \
-//   RED_LED_GPIO->BSRR = 1 << (RED_LED_PIN + 16)
-// #define RedLEDoff()    \
-//   RED_LED_GPIO->BSRR = 1 << RED_LED_PIN
-//
-// #define GreenLEDon()   \
-//   GREEN_LED_GPIO->BSRR = 1 << (GREEN_LED_PIN + 16)
-// #define GreenLEDoff()  \
-//   GREEN_LED_GPIO->BSRR = 1 << GREEN_LED_PIN
-//
-// #define BlueLEDon()    \
-//   BLUE_LED_GPIO->BSRR = 1 << (BLUE_LED_PIN + 16)
-// #define BlueLEDoff()   \
-//   BLUE_LED_GPIO->BSRR = 1 << BLUE_LED_PIN
-//
-// #define Green2LEDon()  \
-//   GREEN2_LED_GPIO->BSRR = 1 << GREEN2_LED_PIN
-// #define Green2LEDoff() \
-//   GREEN2_LED_GPIO->BSRR = 1 << (GREEN2_LED_PIN + 16)
-
-
-// void execute_cmd_green(char state, int *states) {
-//   switch (state) {
-//     case CMD_STATE_ON:
-//       GreenLEDon();
-//       states[GREEN_STATE_POS] = STATE_ON;
-//       break;
-//     case CMD_STATE_OFF:
-//       GreenLEDoff();
-//       states[GREEN_STATE_POS] = STATE_OFF;
-//       break;
-//     case CMD_STATE_TOGGLE:
-//       if (states[GREEN_STATE_POS]) {
-//         GreenLEDoff();
-//         states[GREEN_STATE_POS] = STATE_OFF;
-//       }
-//       else {
-//         GreenLEDon();
-//         states[GREEN_STATE_POS] = STATE_ON;
-//       }
-//   }
-// }
-//
-// void execute_cmd_red(char state, int *states) {
-//   switch (state) {
-//     case CMD_STATE_ON:
-//       RedLEDon();
-//       states[RED_STATE_POS] = STATE_ON;
-//       break;
-//     case CMD_STATE_OFF:
-//       RedLEDoff();
-//       states[RED_STATE_POS] = STATE_OFF;
-//       break;
-//     case CMD_STATE_TOGGLE:
-//       if (states[RED_STATE_POS]) {
-//         RedLEDoff();
-//         states[RED_STATE_POS] = STATE_OFF;
-//       }
-//       else {
-//         RedLEDon();
-//         states[RED_STATE_POS] = STATE_ON;
-//       }
-//   }
-// }
-//
-// void execute_cmd_blue(char state, int *states) {
-//   switch (state) {
-//     case CMD_STATE_ON:
-//       BlueLEDon();
-//       states[BLUE_STATE_POS] = STATE_ON;
-//       break;
-//     case CMD_STATE_OFF:
-//       BlueLEDoff();
-//       states[BLUE_STATE_POS] = STATE_OFF;
-//       break;
-//     case CMD_STATE_TOGGLE:
-//       if (states[BLUE_STATE_POS]) {
-//         BlueLEDoff();
-//         states[BLUE_STATE_POS] = STATE_OFF;
-//       }
-//       else {
-//         BlueLEDon();
-//         states[BLUE_STATE_POS] = STATE_ON;
-//       }
-//   }
-// }
-//
-// void execute_cmd_green2(char state, int *states) {
-//   switch (state) {
-//     case CMD_STATE_ON:
-//       Green2LEDon();
-//       states[GREEN2_STATE_POS] = STATE_ON;
-//       break;
-//     case CMD_STATE_OFF:
-//       Green2LEDoff();
-//       states[GREEN2_STATE_POS] = STATE_OFF;
-//       break;
-//     case CMD_STATE_TOGGLE:
-//       if (states[GREEN2_STATE_POS]) {
-//         Green2LEDoff();
-//         states[GREEN2_STATE_POS] = STATE_OFF;
-//       }
-//       else {
-//         Green2LEDon();
-//         states[GREEN2_STATE_POS] = STATE_ON;
-//       }
-//   }
-// }
-
-
-// void execute_command(char color, char state, int *states) {
-//   switch (color) {
-//     case CMD_GREEN:
-//       execute_cmd_green(state, states);
-//       break;
-//     case CMD_RED:
-//       execute_cmd_red(state, states);
-//       break;
-//     case CMD_BLUE:
-//       execute_cmd_blue(state, states);
-//       break;
-//     case CMD_GREEN2:
-//       execute_cmd_green2(state, states);
-//       break;
-//   }
-// }
