@@ -34,16 +34,13 @@
 
 // CR1
 
-// Tryb pracy
 #define USART_Mode_Rx_Tx (USART_CR1_RE | \
                           USART_CR1_TE)
-#define USART_Enable     USART_CR1_UE
+#define USART_Enable      USART_CR1_UE
 
-// Przesyłane słowo to dane łącznie z ewentualnym bitem parzystości
 #define USART_WordLength_8b 0x0000
 #define USART_WordLength_9b USART_CR1_M
 
-// Bit parzystości
 #define USART_Parity_No   0x0000
 #define USART_Parity_Even USART_CR1_PCE
 #define USART_Parity_Odd  (USART_CR1_PCE | \
@@ -51,7 +48,6 @@
 
 // CR2
 
-// Bity stopu
 #define USART_StopBits_1   0x0000
 #define USART_StopBits_0_5 0x1000
 #define USART_StopBits_2   0x2000
@@ -59,14 +55,14 @@
 
 // CR3
 
-// Sterowanie przepływem
 #define USART_FlowControl_None 0x0000
 #define USART_FlowControl_RTS  USART_CR3_RTSE
 #define USART_FlowControl_CTS  USART_CR3_CTSE
 
 // BRR
 
-// Po włączeniu mikrokontroler STM32F411 jest taktowany wewnętrznym generatorem RC HSI (ang.High SpeedInternal) o częstotliwości 16 MHz
+// Po włączeniu mikrokontroler STM32F411 jest taktowany wewnętrznym
+// generatorem RC HSI (ang.High SpeedInternal) o częstotliwości 16 MHz
 #define HSI_HZ 16000000U
 
 // UkładUART2 jest taktowany zegarem PCLK1, który powłączeniu mikrokontrolera jest zegarem HSI
@@ -132,18 +128,15 @@ static inline int JoystickActionCheck() {
   return !(JOYSTICK_GPIO->IDR & (1 << JOYSTICK_ACTION_PIN));
 }
 
-void set_clock() {
+static void set_clock() {
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
       RCC_AHB1ENR_GPIOBEN |
       RCC_AHB1ENR_GPIOCEN;
 
-  // Włączamy taktowanie odpowiednich układów peryferyjnych
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-
 }
 
-void basic_configuration() {
+static void basic_configuration() {
   // Konfiguracja linii TXD
   GPIOafConfigure(GPIOA,
                   2,
@@ -173,19 +166,17 @@ void basic_configuration() {
   USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
       baudrate;
 
-
-  // Ustawiamy bit UE w rejestrze CR1
   USART2->CR1 |= USART_Enable;
 }
 
-void all_leds_off() {
+static void all_leds_off() {
   RedLEDoff();
   GreenLEDoff();
   BlueLEDoff();
   Green2LEDoff();
 }
 
-void configurate_leds() {
+static void configurate_leds() {
   GPIOoutConfigure(RED_LED_GPIO,
                    RED_LED_PIN,
                    GPIO_OType_PP,
@@ -238,7 +229,7 @@ static const int GREEN2_STATE_POS = 3;
 static const int STATE_ON = 1;
 static const int STATE_OFF = 0;
 
-void check_command(char *color, char *state, char curr, int *pos) {
+static void check_command(char *color, char *state, char curr, int *pos) {
   switch (*pos) {
     case CMD_PREFIX_POS:
       if (curr == CMD_PREFIX) {
@@ -272,11 +263,11 @@ void check_command(char *color, char *state, char curr, int *pos) {
   }
 }
 
-void execute_cmd_color(char state,
-                       int *states,
-                       int state_pos,
-                       void (*led_on)(),
-                       void (*led_off)()) {
+static void execute_cmd_color(char state,
+                              int *states,
+                              int state_pos,
+                              void (*led_on)(),
+                              void (*led_off)()) {
   switch (state) {
     case CMD_STATE_ON:
       (*led_on)();
@@ -301,7 +292,7 @@ void execute_cmd_color(char state,
   }
 }
 
-void execute_command(char color, char state, int *states) {
+static void execute_command(char color, char state, int *states) {
   switch (color) {
     case CMD_GREEN:
       execute_cmd_color(state, states, GREEN_STATE_POS, GreenLEDon, GreenLEDoff);
@@ -319,7 +310,7 @@ void execute_command(char color, char state, int *states) {
 }
 
 static const int BUFF_SIZE = 1024;
-static const int BUFF_INIT = 0;
+static const int BUFF_START = 0;
 static const int BUTTONS_NUMBER = 7;
 
 static const int RELEASED = 0;
@@ -353,17 +344,19 @@ static const char *USER_RELEASED = "USER RELEASED\r\n";
 static const char *MODE_PRESSED = "MODE PRESSED\r\n";
 static const char *MODE_RELEASED = "MODE RELEASED\r\n";
 
-void fill_buffer(char *buffer, int *end, const char *msg) {
-  for (int i = 0; i < strlen(msg); i++) {
+static void fill_buffer(char *buffer, int *end, const char *msg) {
+  for (int i = 0; msg[i] != 0; i++) {
     buffer[(*end)++] = msg[i];
 
-    *end %= BUFF_SIZE;
+    if ((*end) == BUFF_SIZE) {
+      *end = BUFF_START;
+    }
   }
 }
 
-void check_button(char *buffer, int *end, int *buttons_states,
-                  int (*button_state)(), int button_pos,
-                  const char *pressed_msg, const char *relased_msg) {
+static void check_button(char *buffer, int *end, int *buttons_states,
+                         int (*button_state)(), int button_pos,
+                         const char *pressed_msg, const char *relased_msg) {
   int curr_state = RELEASED;
 
   if ((curr_state = (*button_state)()) != buttons_states[button_pos]) {
@@ -377,7 +370,7 @@ void check_button(char *buffer, int *end, int *buttons_states,
   }
 }
 
-void check_buttons(char *buffer, int *end, int *buttons_states) {
+static void check_buttons(char *buffer, int *end, int *buttons_states) {
   check_button(buffer, end, buttons_states, JoystickLeftCheck,
                JOYSTICK_LEFT_POS, LEFT_PRESSED, LEFT_RELEASED);
 
@@ -400,19 +393,41 @@ void check_buttons(char *buffer, int *end, int *buttons_states) {
                AT_MODE_BUTTON_POS, MODE_PRESSED, MODE_RELEASED);
 }
 
+static void check_for_input(int *pos, char *color, char *state, int *states) {
+  char c = INITIALISE;
+
+  if (USART2->SR & USART_SR_RXNE) {
+    c = USART2->DR;
+    check_command(color, state, c, pos);
+
+    if ((*pos) == CMD_COMPLETE_POS) {
+      execute_command(*color, *state, states);
+      *pos = CMD_PREFIX_POS;
+    }
+  }
+}
+
+static void send_to_output(char *to_send, int *to_send_start, int *to_send_end) {
+  if (USART2->SR & USART_SR_TXE) {
+    if ((*to_send_start) != (*to_send_end)) {
+      USART2->DR = to_send[(*to_send_start)++];
+
+      if ((*to_send_start) == BUFF_SIZE) {
+        *to_send_start = BUFF_START;
+      }
+    }
+  }
+}
+
 int main() {
   set_clock();
   basic_configuration();
 
-  __NOP();
-
   all_leds_off();
-
   configurate_leds();
 
   char color = INITIALISE;
   char state = INITIALISE;
-  char c = INITIALISE;
   int pos = CMD_PREFIX_POS;
 
   int states[NUMBER_OF_COLORS];
@@ -422,8 +437,8 @@ int main() {
   }
 
   char to_send[BUFF_SIZE];
-  int to_send_start = BUFF_INIT;
-  int to_send_end = BUFF_INIT;
+  int to_send_start = BUFF_START;
+  int to_send_end = BUFF_START;
 
   int buttons_states[BUTTONS_NUMBER];
 
@@ -432,24 +447,8 @@ int main() {
   }
 
   for (;;) {
-    if (USART2->SR & USART_SR_RXNE) {
-      c = USART2->DR;
-      check_command(&color, &state, c, &pos);
-
-      if (pos == CMD_COMPLETE_POS) {
-        execute_command(color, state, states);
-        pos = CMD_PREFIX_POS;
-      }
-    }
-
+    check_for_input(&pos, &color, &state, states);
     check_buttons(to_send, &to_send_end, buttons_states);
-
-    if (USART2->SR & USART_SR_TXE) {
-      if (to_send_start != to_send_end) {
-        USART2->DR = to_send[to_send_start++];
-
-        to_send_start %= BUFF_SIZE;
-      }
-    }
+    send_to_output(to_send, &to_send_start, &to_send_end);
   }
 }
