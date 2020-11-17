@@ -211,50 +211,6 @@ void configurate_leds() {
                    GPIO_PuPd_NOPULL);
 }
 
-void configurate_buttons() {
-  GPIOinConfigure(AT_MODE_BUTTON_GPIO,
-                  AT_MODE_BUTTON_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(USER_BUTTON_GPIO,
-                  USER_BUTTON_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(JOYSTICK_GPIO,
-                  JOYSTICK_DOWN_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(JOYSTICK_GPIO,
-                  JOYSTICK_UP_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(JOYSTICK_GPIO,
-                  JOYSTICK_RIGHT_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(JOYSTICK_GPIO,
-                  JOYSTICK_LEFT_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-
-  GPIOinConfigure(JOYSTICK_GPIO,
-                  JOYSTICK_ACTION_PIN,
-                  GPIO_PuPd_DOWN,
-                  EXTI_Mode_Event,
-                  EXTI_Trigger_Irrelevant);
-}
-
 static const char INITIALISE = ' ';
 
 static const int CMD_PREFIX_POS = 0;
@@ -394,7 +350,7 @@ static const char *FIRE_RELEASED = "FIRE RELEASED\r\n";
 static const char *USER_PRESSED = "USER PRESSED\r\n";
 static const char *USER_RELEASED = "USER RELEASED\r\n";
 
-static const char *MODE_PRESET = "MODE PRESET\r\n";
+static const char *MODE_PRESSED = "MODE PRESSED\r\n";
 static const char *MODE_RELEASED = "MODE RELEASED\r\n";
 
 void fill_buffer(char *buffer, int *end, const char *msg) {
@@ -441,7 +397,7 @@ void check_buttons(char *buffer, int *end, int *buttons_states) {
                USER_BUTTON_POS, USER_PRESSED, USER_RELEASED);
 
   check_button(buffer, end, buttons_states, AtModeButtonCheck,
-               AT_MODE_BUTTON_POS, MODE_PRESET, MODE_RELEASED);
+               AT_MODE_BUTTON_POS, MODE_PRESSED, MODE_RELEASED);
 }
 
 int main() {
@@ -453,7 +409,6 @@ int main() {
   all_leds_off();
 
   configurate_leds();
-  configurate_buttons();
 
   char color = INITIALISE;
   char state = INITIALISE;
