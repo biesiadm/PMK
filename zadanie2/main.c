@@ -245,9 +245,77 @@ static void configurate_buttons() {
   SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA;
 
   NVIC_EnableIRQ(EXTI0_IRQn);
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_LEFT_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI3_PB;
+
+  NVIC_EnableIRQ(EXTI3_IRQn);
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_RIGHT_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI4_PB;
+
+  NVIC_EnableIRQ(EXTI4_IRQn);
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_UP_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI5_PB;
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_DOWN_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI6_PB;
+
+  NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(JOYSTICK_GPIO,
+                  JOYSTICK_ACTION_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI10_PB;
+
+///////////////////////////////////////////////////////////////////////////////
+
+  GPIOinConfigure(USER_BUTTON_GPIO,
+                  USER_BUTTON_PIN,
+                  GPIO_PuPd_DOWN,
+                  EXTI_Mode_Interrupt,
+                  EXTI_Trigger_Rising_Falling);
+
+  SYSCFG->EXTICR[3] |= SYSCFG_EXTICR4_EXTI13_PC;
+
+  NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
-static void EXTI0_IRQHandler() {}
+
 
 static const char INITIALISE = ' ';
 
@@ -418,17 +486,6 @@ static void try_to_send_msg() {
   }
 }
 
-
-// static void fill_buffer(char *buffer, int *end, const char *msg) {
-//   for (int i = 0; msg[i] != 0; i++) {
-//     buffer[(*end)++] = msg[i];
-//
-//     if ((*end) == BUFF_SIZE) {
-//       *end = BUFF_START;
-//     }
-//   }
-// }
-
 static void fill_buffer(const char *msg) {
   for (int i = 0; msg[i] != 0; i++) {
     cyclic_buffer[cyclic_buffer_end++] = msg[i];
@@ -493,17 +550,62 @@ static void check_for_input(int *pos, char *color, char *state, int *states) {
   }
 }
 
-// static void send_to_output() {
-//   if (USART2->SR & USART_SR_TXE) {
-//     if ((cyclic_buffer_start) != (cyclic_buffer_end)) {
-//       USART2->DR = cyclic_buffer[(cyclic_buffer_start)++];
-//
-//       if ((cyclic_buffer_start) == BUFF_SIZE) {
-//         cyclic_buffer_start = BUFF_START;
-//       }
-//     }
-//   }
-// }
+void EXTI0_IRQHandler(void) {
+  if (EXTI->PR & EXTI_PR_PR0) {
+
+    if (AtModeButtonCheck()) {
+      fill_buffer(MODE_PRESSED);
+    } else {
+      fill_buffer(MODE_RELEASED);
+    }
+    EXTI->PR |= EXTI_PR_PR0;
+//    fill_buffer("atmode\r\n");
+  }
+}
+
+void EXTI3_IRQHandler(void) {
+  if (EXTI->PR & EXTI_PR_PR3) {
+    EXTI->PR |= EXTI_PR_PR3;
+
+    fill_buffer("left\r\n");
+  }
+}
+
+void EXTI4_IRQHandler(void) {
+  if (EXTI->PR & EXTI_PR_PR4) {
+    EXTI->PR |= EXTI_PR_PR4;
+
+    fill_buffer("right\r\n");
+  }
+}
+
+void EXTI9_5_IRQHandler(void) {
+  if (EXTI->PR & EXTI_PR_PR5) {
+    EXTI->PR |= EXTI_PR_PR5;
+
+    fill_buffer("up\r\n");
+  }
+
+  if (EXTI->PR & EXTI_PR_PR6) {
+    EXTI->PR |= EXTI_PR_PR6;
+
+    fill_buffer("down\r\n");
+  }
+}
+
+void EXTI15_10_IRQHandler(void) {
+  if (EXTI->PR & EXTI_PR_PR10) {
+    EXTI->PR |= EXTI_PR_PR10;
+
+    fill_buffer("fire\r\n");
+  }
+
+  if (EXTI->PR & EXTI_PR_PR13) {
+    EXTI->PR |= EXTI_PR_PR13;
+
+    fill_buffer("user\r\n");
+  }
+}
 
 void DMA1_Stream6_IRQHandler() {
   /* Odczytaj zgłoszone przerwania DMA1. */
@@ -554,7 +656,6 @@ int main() {
 
   for (;;) {
     check_for_input(&pos, &color, &state, states);
-    check_buttons(buttons_states);
-    // send_to_output();
+//    check_buttons(buttons_states);
   }
 }
