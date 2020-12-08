@@ -3,20 +3,6 @@
 #include <stm32.h>
 #include <string.h>
 
-
-// Leds
-
-#define RED_LED_GPIO    GPIOA
-#define GREEN_LED_GPIO  GPIOA
-#define BLUE_LED_GPIO   GPIOB
-#define GREEN2_LED_GPIO GPIOA
-
-#define RED_LED_PIN    6
-#define GREEN_LED_PIN  7
-#define BLUE_LED_PIN   0
-#define GREEN2_LED_PIN 5
-
-
 // Buttons
 
 #define USER_BUTTON_GPIO      GPIOC
@@ -117,7 +103,6 @@ static void set_clock() {
 }
 
 static void basic_configuration() {
-  // Przykładowa konfiguracja (układ pozostaje nieaktywny – nie ustawiamy bitu USART_Enable)
   USART2->CR1 = USART_Mode_Rx_Tx |
       USART_WordLength_8b |
       USART_Parity_No;
@@ -128,10 +113,8 @@ static void basic_configuration() {
   USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
       baudrate;
 
-  // USART2->CR3 = USART_FlowControl_None;
   USART2->CR3 = USART_CR3_DMAT | USART_CR3_DMAR;
 
-  // Konfigruacja DMA
   DMA1_Stream6->CR = 4U << 25 |
       DMA_SxCR_PL_1 |
       DMA_SxCR_MINC |
