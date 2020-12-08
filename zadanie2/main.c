@@ -1,7 +1,5 @@
-#include <delay.h>
 #include <gpio.h>
 #include <stm32.h>
-#include <string.h>
 
 // Buttons
 
@@ -52,17 +50,19 @@
 // UkładUART2 jest taktowany zegarem PCLK1, który powłączeniu mikrokontrolera jest zegarem HSI
 #define PCLK1_HZ HSI_HZ
 
+#define CLEAR_EXTI_PR 0x7FFFF
+
 // Bufory
 
 #define BUFF_SIZE 1024
 static const int BUFF_START = 0;
 
-volatile char cyclic_buffer[BUFF_SIZE];
-volatile int cyclic_buffer_start = BUFF_START;
-volatile int cyclic_buffer_end = BUFF_START;
+char cyclic_buffer[BUFF_SIZE];
+int cyclic_buffer_start = BUFF_START;
+int cyclic_buffer_end = BUFF_START;
 
-volatile char to_send_buffer[BUFF_SIZE];
-volatile int to_send_len = BUFF_START;
+char to_send_buffer[BUFF_SIZE];
+int to_send_len = BUFF_START;
 
 static int AtModeButtonCheck() {
   return (AT_MODE_BUTTON_GPIO->IDR & (1 << AT_MODE_BUTTON_PIN));
@@ -113,7 +113,7 @@ static void basic_configuration() {
   USART2->BRR = (PCLK1_HZ + (baudrate / 2U)) /
       baudrate;
 
-  USART2->CR3 = USART_CR3_DMAT | USART_CR3_DMAR;
+  USART2->CR3 = USART_CR3_DMAT;
 
   DMA1_Stream6->CR = 4U << 25 |
       DMA_SxCR_PL_1 |
@@ -152,19 +152,11 @@ static void configurate_buttons() {
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
 
-  SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA;
-
-  NVIC_EnableIRQ(EXTI0_IRQn);
-
   GPIOinConfigure(JOYSTICK_GPIO,
                   JOYSTICK_LEFT_PIN,
                   GPIO_PuPd_DOWN,
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
-
-  SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI3_PB;
-
-  NVIC_EnableIRQ(EXTI3_IRQn);
 
   GPIOinConfigure(JOYSTICK_GPIO,
                   JOYSTICK_RIGHT_PIN,
@@ -172,17 +164,11 @@ static void configurate_buttons() {
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
 
-  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI4_PB;
-
-  NVIC_EnableIRQ(EXTI4_IRQn);
-
   GPIOinConfigure(JOYSTICK_GPIO,
                   JOYSTICK_UP_PIN,
                   GPIO_PuPd_DOWN,
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
-
-  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI5_PB;
 
   GPIOinConfigure(JOYSTICK_GPIO,
                   JOYSTICK_DOWN_PIN,
@@ -190,17 +176,11 @@ static void configurate_buttons() {
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
 
-  SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI6_PB;
-
-  NVIC_EnableIRQ(EXTI9_5_IRQn);
-
   GPIOinConfigure(JOYSTICK_GPIO,
                   JOYSTICK_ACTION_PIN,
                   GPIO_PuPd_DOWN,
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
-
-  SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI10_PB;
 
   GPIOinConfigure(USER_BUTTON_GPIO,
                   USER_BUTTON_PIN,
@@ -208,8 +188,12 @@ static void configurate_buttons() {
                   EXTI_Mode_Interrupt,
                   EXTI_Trigger_Rising_Falling);
 
-  SYSCFG->EXTICR[3] |= SYSCFG_EXTICR4_EXTI13_PC;
+  EXTI->PR = CLEAR_EXTI_PR;
 
+  NVIC_EnableIRQ(EXTI0_IRQn);
+  NVIC_EnableIRQ(EXTI3_IRQn);
+  NVIC_EnableIRQ(EXTI4_IRQn);
+  NVIC_EnableIRQ(EXTI9_5_IRQn);
   NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
@@ -246,6 +230,7 @@ static void try_to_send_msg() {
       cyclic_buffer_start != cyclic_buffer_end) {
     int i = 0;
 
+    // jeden bufor
     while (cyclic_buffer_start != cyclic_buffer_end) {
       to_send_buffer[i] = cyclic_buffer[cyclic_buffer_start++];
       i++;
