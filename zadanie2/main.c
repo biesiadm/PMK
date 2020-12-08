@@ -61,9 +61,6 @@ char cyclic_buffer[BUFF_SIZE];
 int cyclic_buffer_start = BUFF_START;
 int cyclic_buffer_end = BUFF_START;
 
-char to_send_buffer[BUFF_SIZE];
-int to_send_len = BUFF_START;
-
 static int AtModeButtonCheck() {
   return (AT_MODE_BUTTON_GPIO->IDR & (1 << AT_MODE_BUTTON_PIN));
 }
@@ -218,8 +215,8 @@ static const char *USER_RELEASED = "USER RELEASED\r\n";
 static const char *MODE_PRESSED = "MODE PRESSED\r\n";
 static const char *MODE_RELEASED = "MODE RELEASED\r\n";
 
-static void activate_send_stream() {
-  DMA1_Stream6->M0AR = (uint32_t) to_send_buffer;
+static void activate_send_stream(int to_send_len) {
+  DMA1_Stream6->M0AR = (uint32_t)(cyclic_buffer + cyclic_buffer_start);
   DMA1_Stream6->NDTR = to_send_len;
   DMA1_Stream6->CR |= DMA_SxCR_EN;
 }
@@ -228,21 +225,20 @@ static void try_to_send_msg() {
   if ((DMA1_Stream6->CR & DMA_SxCR_EN) == 0 &&
       (DMA1->HISR & DMA_HISR_TCIF6) == 0 &&
       cyclic_buffer_start != cyclic_buffer_end) {
-    int i = 0;
 
-    // jeden bufor
-    while (cyclic_buffer_start != cyclic_buffer_end) {
-      to_send_buffer[i] = cyclic_buffer[cyclic_buffer_start++];
-      i++;
+    int to_send_len = 0, new_start = 0;
 
-      if (cyclic_buffer_start == BUFF_SIZE) {
-        cyclic_buffer_start = 0;
-      }
+    if (cyclic_buffer_start < cyclic_buffer_end) {
+      to_send_len = cyclic_buffer_end - cyclic_buffer_start;
+      new_start = cyclic_buffer_end;
+    } else {
+      to_send_len = BUFF_SIZE - cyclic_buffer_start;
+      new_start = BUFF_START;
     }
 
-    to_send_len = i;
+    activate_send_stream(to_send_len);
 
-    activate_send_stream();
+    cyclic_buffer_start = new_start;
   }
 }
 
