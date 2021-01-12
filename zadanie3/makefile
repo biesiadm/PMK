@@ -12,7 +12,7 @@ LDFLAGS  = $(FLAGS) -Wl,--gc-sections -nostartfiles \
 
 vpath %.c /opt/arm/stm32/src
 
-OBJECTS = main.o startup_stm32.o delay.o gpio.o
+OBJECTS = main.o startup_stm32.o delay.o gpio.o leds.o print_dma.o
 TARGET  = main
 
 .SECONDARY: $(TARGET).elf $(OBJECTS)

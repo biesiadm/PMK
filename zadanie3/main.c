@@ -1,5 +1,7 @@
 #include <gpio.h>
 #include <stm32.h>
+#include "leds.h"
+#include "print_dma.h"
 
 // CR1
 
@@ -37,15 +39,9 @@
 
 #define CLEAR_EXTI_PR 0x7FFFF
 
-// Bufory
-
-#define BUFF_SIZE 1024
-static const int BUFF_START = 0;
-
-char cyclic_buffer[BUFF_SIZE];
-int cyclic_buffer_start = BUFF_START;
-int cyclic_buffer_end = BUFF_START;
-
+// I2C
+#define I2C_SPEED_HZ 100000
+#define PCLK1_MHZ 16
 
 static void set_clock() {
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
@@ -53,7 +49,8 @@ static void set_clock() {
       RCC_AHB1ENR_GPIOCEN |
       RCC_AHB1ENR_DMA1EN;
 
-  RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+  RCC->APB1ENR |= RCC_APB1ENR_USART2EN |
+      RCC_APB1ENR_I2C1EN;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 }
 
@@ -84,83 +81,40 @@ static void basic_configuration() {
   USART2->CR1 |= USART_Enable;
 
   // Konfiguracja linii TXD
-  GPIOafConfigure(GPIOA,
-                  2,
-                  GPIO_OType_PP,
-                  GPIO_Fast_Speed,
-                  GPIO_PuPd_NOPULL,
+  GPIOafConfigure(GPIOA,2,GPIO_OType_PP,
+                  GPIO_Fast_Speed,GPIO_PuPd_NOPULL,
                   GPIO_AF_USART2);
 
   // Konfiguracja linii RXD
-  GPIOafConfigure(GPIOA,
-                  3,
-                  GPIO_OType_PP,
-                  GPIO_Fast_Speed,
-                  GPIO_PuPd_UP,
+  GPIOafConfigure(GPIOA,3,GPIO_OType_PP,
+                  GPIO_Fast_Speed,GPIO_PuPd_UP,
                   GPIO_AF_USART2);
-}
 
-static void activate_send_stream(int to_send_len) {
-  DMA1_Stream6->M0AR = (uint32_t) (cyclic_buffer + cyclic_buffer_start);
-  DMA1_Stream6->NDTR = to_send_len;
-  DMA1_Stream6->CR |= DMA_SxCR_EN;
-}
+  // Konfiguracja SCL na PB8
+  GPIOafConfigure(GPIOB, 8, GPIO_OType_OD,
+                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
+                  GPIO_AF_I2C1);
 
-static void try_to_send_msg() {
-  if ((DMA1_Stream6->CR & DMA_SxCR_EN) == 0 &&
-      (DMA1->HISR & DMA_HISR_TCIF6) == 0 &&
-      cyclic_buffer_start != cyclic_buffer_end) {
+  // Konfiguracja SDA na PB9
+  GPIOafConfigure(GPIOB, 9, GPIO_OType_OD,
+                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
+                  GPIO_AF_I2C1);
 
-    int to_send_len = 0, new_start = 0;
+  I2C1->CR1 = 0;
+  I2C1->CCR = (PCLK1_MHZ * 1000000) / (I2C_SPEED_HZ << 1);
+  I2C1->CR2 = PCLK1_MHZ;I2C1->TRISE = PCLK1_MHZ + 1;
 
-    if (cyclic_buffer_start < cyclic_buffer_end) {
-      to_send_len = cyclic_buffer_end - cyclic_buffer_start;
-      new_start = cyclic_buffer_end;
-    } else {
-      to_send_len = BUFF_SIZE - cyclic_buffer_start;
-      new_start = BUFF_START;
-    }
-
-    activate_send_stream(to_send_len);
-
-    cyclic_buffer_start = new_start;
-  }
-}
-
-static void fill_buffer(const char *msg) {
-  for (int i = 0; msg[i] != 0; i++) {
-    cyclic_buffer[cyclic_buffer_end++] = msg[i];
-
-    if (cyclic_buffer_end == BUFF_SIZE) {
-      cyclic_buffer_end = BUFF_START;
-    }
-  }
-
-  try_to_send_msg();
-}
-
-static void log_event(const char *message) {
-    fill_buffer(message);
-}
-
-
-void DMA1_Stream6_IRQHandler() {
-  /* Odczytaj zgłoszone przerwania DMA1. */
-  uint32_t isr = DMA1->HISR;
-
-  if (isr & DMA_HISR_TCIF6) {
-    /* Obsłuż zakończenie transferu w strumieniu 6. */
-    DMA1->HIFCR = DMA_HIFCR_CTCIF6;
-
-    try_to_send_msg();
-  }
+  I2C1->CR1 |= I2C_CR1_PE;
 }
 
 int main() {
   set_clock();
   basic_configuration();
+  configurate_leds();
 
-//  configurate_buttons();
+  all_leds_off();
 
-  for (;;) {}
+  for (;;) {
+    Green2LEDon();
+  }
 }
