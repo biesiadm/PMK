@@ -1,6 +1,7 @@
 #include <gpio.h>
 #include <stm32.h>
 #include <math.h>
+#include <stdio.h>
 #include "leds.h"
 #include "print_dma.h"
 
@@ -43,6 +44,24 @@
 // I2C
 #define I2C_SPEED_HZ 100000
 #define PCLK1_MHZ 16
+
+// Accelerometer
+#define LIS35DE_ADDR 0x1C
+#define OUT_X 0x29
+#define OUT_Y 0x2B
+#define OUT_Z 0x2D
+
+#define LIS35_REG_CR1 0x20
+#define LIS35_REG_CR1_XEN 0x1
+#define LIS35_REG_CR1_YEN 0x2
+#define LIS35_REG_CR1_ZEN 0x4
+#define LIS35_REG_CR1_DR_400HZ 0x80
+#define LIS35_REG_CR1_ACTIVE 0x40
+#define LIS35_REG_CR1_FULL_SCALE 0x20
+
+void setRedLEDPower(int power_percent);
+void setGreenLEDPower(int power_percent);
+void setBlueLEDPower(int power_percent);
 
 static const int LED_OFF = 0;
 
@@ -93,7 +112,9 @@ static void basic_configuration() {
   GPIOafConfigure(GPIOA, 3, GPIO_OType_PP,
                   GPIO_Fast_Speed, GPIO_PuPd_UP,
                   GPIO_AF_USART2);
+}
 
+void configurate_i2c() {
   // Konfiguracja SCL na PB8
   GPIOafConfigure(GPIOB, 8, GPIO_OType_OD,
                   GPIO_Low_Speed, GPIO_PuPd_NOPULL,
@@ -110,6 +131,73 @@ static void basic_configuration() {
   I2C1->TRISE = PCLK1_MHZ + 1;
 
   I2C1->CR1 |= I2C_CR1_PE;
+
+}
+
+void write_to_accelerometer() {
+  I2C1->CR1 |= I2C_CR1_START;
+  while (!(I2C1->SR1 & I2C_SR1_SB)) {}
+
+  I2C1->DR = LIS35DE_ADDR << 1;
+  while (!(I2C1->SR1 & I2C_SR1_ADDR)) {}
+  I2C1->SR2;
+
+  I2C1->DR = LIS35_REG_CR1;
+  while (!(I2C1->SR1 & I2C_SR1_TXE)) {}
+
+  I2C1->DR = LIS35_REG_CR1_ACTIVE |
+      LIS35_REG_CR1_XEN |
+      LIS35_REG_CR1_YEN |
+      LIS35_REG_CR1_ZEN;
+  while (!(I2C1->SR1 & I2C_SR1_BTF)) {}
+
+  I2C1->CR1 |= I2C_CR1_STOP;
+}
+
+void read_from_accelerometer(uint8_t reg, char* name) {
+  // Start
+  I2C1->CR1 |= I2C_CR1_START;
+  while (!(I2C1->SR1 & I2C_SR1_SB)) {}
+
+  I2C1->DR = LIS35DE_ADDR << 1;
+  while (!(I2C1->SR1 & I2C_SR1_ADDR)) {}
+  I2C1->SR2;
+
+  I2C1->DR = reg;
+  while (!(I2C1->SR1 & I2C_SR1_BTF)) {}
+
+  // Repeated start
+  I2C1->CR1 |= I2C_CR1_START;
+  while (!(I2C1->SR1 & I2C_SR1_SB)) {}
+
+  I2C1->DR = LIS35DE_ADDR << 1 | 1;
+  I2C1->CR1 &= ~I2C_CR1_ACK;
+  while (!(I2C1->SR1 & I2C_SR1_ADDR)) {}
+  I2C1->SR2;
+
+  // Stop
+  I2C1->CR1 |= I2C_CR1_STOP;
+  while (!(I2C1->SR1 & I2C_SR1_RXNE)) {}
+  int8_t value = I2C1->DR;
+  if (value < 0) value = -value;
+  unsigned percentage_value = ((((unsigned) value) * 100) / 127) % 100;
+//  char temp[10];
+//  snprintf(temp, 10, "%u", percentage_value);
+//  log_event(name);
+//  log_event(temp);
+//  log_event("\r\n");
+
+  switch (reg) {
+    case OUT_X:
+      setRedLEDPower(percentage_value);
+      break;
+    case OUT_Y:
+      setGreenLEDPower(percentage_value);
+      break;
+    case OUT_Z:
+      setBlueLEDPower(percentage_value);
+      break;
+  }
 }
 
 // Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
@@ -121,13 +209,13 @@ float calc_pwm(float val) {
 
 void config_timer_leds() {
   GPIOafConfigure(GPIOA, 6, GPIO_OType_PP,
-                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
                   GPIO_AF_TIM3);
   GPIOafConfigure(GPIOA, 7, GPIO_OType_PP,
-                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
                   GPIO_AF_TIM3);
   GPIOafConfigure(GPIOB, 0, GPIO_OType_PP,
-                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
                   GPIO_AF_TIM3);
 }
 
@@ -139,22 +227,19 @@ void configurate_timer() {
   TIM3->PSC = 1;
   TIM3->ARR = 16000;
   TIM3->EGR = TIM_EGR_UG;
-  TIM3->CCR1 = 0;
-  TIM3->CCR2 = 0;
+  TIM3->CCR1 = 0;   // Red
+  TIM3->CCR2 = 0;   // Green
+  TIM3->CCR3 = 0;   // Blue
 
   TIM3->CCMR1 =
       TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
-      TIM_CCMR1_OC1PE  |
-      TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
-//      TIM_CCMR1_OC2M_0 |
-      TIM_CCMR1_OC2PE;
-
-  // Blue
-  TIM3->CCR3 = 0;
+          TIM_CCMR1_OC1PE |
+          TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
+          TIM_CCMR1_OC2PE;
 
   TIM3->CCMR2 =
       TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
-      TIM_CCMR2_OC3PE;
+          TIM_CCMR2_OC3PE;
 
   TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
       TIM_CCER_CC2E | TIM_CCER_CC2P |
@@ -163,26 +248,26 @@ void configurate_timer() {
   TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
 }
 
-void TIM3_IRQHandler(void) {
-  uint32_t it_status = TIM3->SR & TIM3->DIER;
-
-  if (it_status & TIM_SR_UIF) {
-    TIM3->SR = ~TIM_SR_UIF;
-    log_event("TIM_SR_UIF\r\n");
-  }
-
-  if (it_status & TIM_SR_CC1IF) {
-    TIM3->SR = ~TIM_SR_CC1IF;
-    log_event("TIM_SR_CC1IF\r\n");
-    BlueLEDon();
-  }
-
-  if (it_status & TIM_SR_CC2IF) {
-    TIM3->SR = ~TIM_SR_CC2IF;
-    log_event("TIM_SR_CC2IF\r\n");
-    BlueLEDoff();
-  }
-}
+//void TIM3_IRQHandler(void) {
+//  uint32_t it_status = TIM3->SR & TIM3->DIER;
+//
+//  if (it_status & TIM_SR_UIF) {
+//    TIM3->SR = ~TIM_SR_UIF;
+//    log_event("TIM_SR_UIF\r\n");
+//  }
+//
+//  if (it_status & TIM_SR_CC1IF) {
+//    TIM3->SR = ~TIM_SR_CC1IF;
+//    log_event("TIM_SR_CC1IF\r\n");
+//    BlueLEDon();
+//  }
+//
+//  if (it_status & TIM_SR_CC2IF) {
+//    TIM3->SR = ~TIM_SR_CC2IF;
+//    log_event("TIM_SR_CC2IF\r\n");
+//    BlueLEDoff();
+//  }
+//}
 
 void my_sleep(int milis) {
 #define STEPS_PER_MILI 4000
@@ -196,21 +281,24 @@ void my_sleep(int milis) {
 void setRedLEDPower(int power_percent) {
   TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) TIM3->CCR1 = calc_pwm(power_percent);
-  else TIM3->CCR1 = LED_OFF;
+  else
+    TIM3->CCR1 = LED_OFF;
   TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 void setGreenLEDPower(int power_percent) {
   TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) TIM3->CCR2 = calc_pwm(power_percent);
-  else TIM3->CCR2 = LED_OFF;
+  else
+    TIM3->CCR2 = LED_OFF;
   TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 void setBlueLEDPower(int power_percent) {
   TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) TIM3->CCR3 = calc_pwm(power_percent);
-  else TIM3->CCR3 = LED_OFF;
+  else
+    TIM3->CCR3 = LED_OFF;
   TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
@@ -222,7 +310,19 @@ int main() {
   config_timer_leds();
   configurate_timer();
 
+  configurate_i2c();
+
   all_leds_off();
 
-  for (;;) {}
+  write_to_accelerometer();
+
+  log_event("start\r\n");
+  for (;;) {
+//    my_sleep(100);
+    read_from_accelerometer(OUT_X, "X: ");
+//    my_sleep(100);
+    read_from_accelerometer(OUT_Y, "Y: ");
+//    my_sleep(100);
+    read_from_accelerometer(OUT_Z, "Z: ");
+  }
 }

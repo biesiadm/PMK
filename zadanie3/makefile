@@ -8,7 +8,7 @@ CFLAGS   = $(FLAGS) -Wall -g \
 	   -I/opt/arm/stm32/CMSIS/Include \
 	   -I/opt/arm/stm32/CMSIS/Device/ST/STM32F4xx/Include
 LDFLAGS  = $(FLAGS) -Wl,--gc-sections -nostartfiles \
-	   -L/opt/arm/stm32/lds -Tstm32f411re.lds
+	   -L/opt/arm/stm32/lds -Tstm32f411re.lds -specs=nosys.specs
 LDLIBS	 = -lm
 
 vpath %.c /opt/arm/stm32/src
