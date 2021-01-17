@@ -100,7 +100,7 @@ void config_timer_leds() {
 }
 
 void enable_interrupts() {
-  TIM3->SR = ~(TIM_SR_CC4IF);
-  TIM3->DIER = TIM_DIER_CC4IE;
+  TIM3->SR = ~(TIM_SR_UIF);
+  TIM3->DIER = TIM_DIER_UIE;
   NVIC_EnableIRQ(TIM3_IRQn);
 }

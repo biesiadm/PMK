@@ -9,6 +9,7 @@ add_executable(zadanie3
         leds.c leds.h
         print_dma.c print_dma.h
         timer.c timer.h
+        i2c.c i2c.h
         )
 
 add_definitions(-DSTM32F411xE)

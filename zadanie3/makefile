@@ -13,7 +13,7 @@ LDLIBS	 = -lm
 
 vpath %.c /opt/arm/stm32/src
 
-OBJECTS = main.o startup_stm32.o delay.o gpio.o leds.o print_dma.o timer.o
+OBJECTS = main.o startup_stm32.o delay.o gpio.o leds.o print_dma.o timer.o i2c.o
 TARGET  = main
 
 .SECONDARY: $(TARGET).elf $(OBJECTS)
