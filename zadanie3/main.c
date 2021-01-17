@@ -1,5 +1,6 @@
 #include <gpio.h>
 #include <stm32.h>
+#include <math.h>
 #include "leds.h"
 #include "print_dma.h"
 
@@ -43,6 +44,8 @@
 #define I2C_SPEED_HZ 100000
 #define PCLK1_MHZ 16
 
+static const int LED_OFF = 0;
+
 static void set_clock() {
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
       RCC_AHB1ENR_GPIOBEN |
@@ -50,7 +53,8 @@ static void set_clock() {
       RCC_AHB1ENR_DMA1EN;
 
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN |
-      RCC_APB1ENR_I2C1EN;
+      RCC_APB1ENR_I2C1EN |
+      RCC_APB1ENR_TIM3EN;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 }
 
@@ -81,13 +85,13 @@ static void basic_configuration() {
   USART2->CR1 |= USART_Enable;
 
   // Konfiguracja linii TXD
-  GPIOafConfigure(GPIOA,2,GPIO_OType_PP,
-                  GPIO_Fast_Speed,GPIO_PuPd_NOPULL,
+  GPIOafConfigure(GPIOA, 2, GPIO_OType_PP,
+                  GPIO_Fast_Speed, GPIO_PuPd_NOPULL,
                   GPIO_AF_USART2);
 
   // Konfiguracja linii RXD
-  GPIOafConfigure(GPIOA,3,GPIO_OType_PP,
-                  GPIO_Fast_Speed,GPIO_PuPd_UP,
+  GPIOafConfigure(GPIOA, 3, GPIO_OType_PP,
+                  GPIO_Fast_Speed, GPIO_PuPd_UP,
                   GPIO_AF_USART2);
 
   // Konfiguracja SCL na PB8
@@ -102,9 +106,112 @@ static void basic_configuration() {
 
   I2C1->CR1 = 0;
   I2C1->CCR = (PCLK1_MHZ * 1000000) / (I2C_SPEED_HZ << 1);
-  I2C1->CR2 = PCLK1_MHZ;I2C1->TRISE = PCLK1_MHZ + 1;
+  I2C1->CR2 = PCLK1_MHZ;
+  I2C1->TRISE = PCLK1_MHZ + 1;
 
   I2C1->CR1 |= I2C_CR1_PE;
+}
+
+// Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
+float calc_pwm(float val) {
+  const float k = 0.1f;
+  const float x0 = 60.0f;
+  return TIM3->ARR / (1.0f + expf(-k * (val - x0)));
+}
+
+void config_timer_leds() {
+  GPIOafConfigure(GPIOA, 6, GPIO_OType_PP,
+                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_AF_TIM3);
+  GPIOafConfigure(GPIOA, 7, GPIO_OType_PP,
+                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_AF_TIM3);
+  GPIOafConfigure(GPIOB, 0, GPIO_OType_PP,
+                  GPIO_Low_Speed,GPIO_PuPd_NOPULL,
+                  GPIO_AF_TIM3);
+}
+
+void configurate_timer() {
+//  TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF);
+//  TIM3->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE | TIM_DIER_CC2IE;
+//  NVIC_EnableIRQ(TIM3_IRQn);
+
+  TIM3->PSC = 1;
+  TIM3->ARR = 16000;
+  TIM3->EGR = TIM_EGR_UG;
+  TIM3->CCR1 = 0;
+  TIM3->CCR2 = 0;
+
+  TIM3->CCMR1 =
+      TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
+      TIM_CCMR1_OC1PE  |
+      TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
+//      TIM_CCMR1_OC2M_0 |
+      TIM_CCMR1_OC2PE;
+
+  // Blue
+  TIM3->CCR3 = 0;
+
+  TIM3->CCMR2 =
+      TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
+      TIM_CCMR2_OC3PE;
+
+  TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
+      TIM_CCER_CC2E | TIM_CCER_CC2P |
+      TIM_CCER_CC3E | TIM_CCER_CC3P;
+
+  TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
+}
+
+void TIM3_IRQHandler(void) {
+  uint32_t it_status = TIM3->SR & TIM3->DIER;
+
+  if (it_status & TIM_SR_UIF) {
+    TIM3->SR = ~TIM_SR_UIF;
+    log_event("TIM_SR_UIF\r\n");
+  }
+
+  if (it_status & TIM_SR_CC1IF) {
+    TIM3->SR = ~TIM_SR_CC1IF;
+    log_event("TIM_SR_CC1IF\r\n");
+    BlueLEDon();
+  }
+
+  if (it_status & TIM_SR_CC2IF) {
+    TIM3->SR = ~TIM_SR_CC2IF;
+    log_event("TIM_SR_CC2IF\r\n");
+    BlueLEDoff();
+  }
+}
+
+void my_sleep(int milis) {
+#define STEPS_PER_MILI 4000
+  for (int ms = 0; ms < milis; ms++) {
+    for (int i = 0; i < STEPS_PER_MILI; i++) {
+      asm("nop");
+    }
+  }
+}
+
+void setRedLEDPower(int power_percent) {
+  TIM3->CR1 |= TIM_CR1_UDIS;
+  if (power_percent) TIM3->CCR1 = calc_pwm(power_percent);
+  else TIM3->CCR1 = LED_OFF;
+  TIM3->CR1 &= ~TIM_CR1_UDIS;
+}
+
+void setGreenLEDPower(int power_percent) {
+  TIM3->CR1 |= TIM_CR1_UDIS;
+  if (power_percent) TIM3->CCR2 = calc_pwm(power_percent);
+  else TIM3->CCR2 = LED_OFF;
+  TIM3->CR1 &= ~TIM_CR1_UDIS;
+}
+
+void setBlueLEDPower(int power_percent) {
+  TIM3->CR1 |= TIM_CR1_UDIS;
+  if (power_percent) TIM3->CCR3 = calc_pwm(power_percent);
+  else TIM3->CCR3 = LED_OFF;
+  TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 int main() {
@@ -112,9 +219,10 @@ int main() {
   basic_configuration();
   configurate_leds();
 
+  config_timer_leds();
+  configurate_timer();
+
   all_leds_off();
 
-  for (;;) {
-    Green2LEDon();
-  }
+  for (;;) {}
 }
