@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "leds.h"
 #include "print_dma.h"
+#include "timer.h"
 
 // CR1
 
@@ -59,11 +60,6 @@
 #define LIS35_REG_CR1_ACTIVE 0x40
 #define LIS35_REG_CR1_FULL_SCALE 0x20
 
-void setRedLEDPower(int power_percent);
-void setGreenLEDPower(int power_percent);
-void setBlueLEDPower(int power_percent);
-
-static const int LED_OFF = 0;
 
 static void set_clock() {
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
@@ -154,7 +150,7 @@ void write_to_accelerometer() {
   I2C1->CR1 |= I2C_CR1_STOP;
 }
 
-void read_from_accelerometer(uint8_t reg, char* name) {
+void read_from_accelerometer(uint8_t reg, char *name) {
   // Start
   I2C1->CR1 |= I2C_CR1_START;
   while (!(I2C1->SR1 & I2C_SR1_SB)) {}
@@ -181,11 +177,6 @@ void read_from_accelerometer(uint8_t reg, char* name) {
   int8_t value = I2C1->DR;
   if (value < 0) value = -value;
   unsigned percentage_value = ((((unsigned) value) * 100) / 127) % 100;
-//  char temp[10];
-//  snprintf(temp, 10, "%u", percentage_value);
-//  log_event(name);
-//  log_event(temp);
-//  log_event("\r\n");
 
   switch (reg) {
     case OUT_X:
@@ -200,53 +191,41 @@ void read_from_accelerometer(uint8_t reg, char* name) {
   }
 }
 
-// Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
-float calc_pwm(float val) {
-  const float k = 0.1f;
-  const float x0 = 60.0f;
-  return TIM3->ARR / (1.0f + expf(-k * (val - x0)));
-}
+//// Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
+//float calc_pwm(float val) {
+//  const float k = 0.1f;
+//  const float x0 = 60.0f;
+//  return TIM3->ARR / (1.0f + expf(-k * (val - x0)));
+//}
 
-void config_timer_leds() {
-  GPIOafConfigure(GPIOA, 6, GPIO_OType_PP,
-                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
-                  GPIO_AF_TIM3);
-  GPIOafConfigure(GPIOA, 7, GPIO_OType_PP,
-                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
-                  GPIO_AF_TIM3);
-  GPIOafConfigure(GPIOB, 0, GPIO_OType_PP,
-                  GPIO_Low_Speed, GPIO_PuPd_NOPULL,
-                  GPIO_AF_TIM3);
-}
-
-void configurate_timer() {
-//  TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF);
-//  TIM3->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE | TIM_DIER_CC2IE;
-//  NVIC_EnableIRQ(TIM3_IRQn);
-
-  TIM3->PSC = 1;
-  TIM3->ARR = 16000;
-  TIM3->EGR = TIM_EGR_UG;
-  TIM3->CCR1 = 0;   // Red
-  TIM3->CCR2 = 0;   // Green
-  TIM3->CCR3 = 0;   // Blue
-
-  TIM3->CCMR1 =
-      TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
-          TIM_CCMR1_OC1PE |
-          TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
-          TIM_CCMR1_OC2PE;
-
-  TIM3->CCMR2 =
-      TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
-          TIM_CCMR2_OC3PE;
-
-  TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
-      TIM_CCER_CC2E | TIM_CCER_CC2P |
-      TIM_CCER_CC3E | TIM_CCER_CC3P;
-
-  TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
-}
+//void configurate_timer() {
+////  TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF);
+////  TIM3->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE | TIM_DIER_CC2IE;
+////  NVIC_EnableIRQ(TIM3_IRQn);
+//
+//  TIM3->PSC = 1;
+//  TIM3->ARR = 16000;
+//  TIM3->EGR = TIM_EGR_UG;
+//  TIM3->CCR1 = 0;   // Red
+//  TIM3->CCR2 = 0;   // Green
+//  TIM3->CCR3 = 0;   // Blue
+//
+//  TIM3->CCMR1 =
+//      TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
+//          TIM_CCMR1_OC1PE |
+//          TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
+//          TIM_CCMR1_OC2PE;
+//
+//  TIM3->CCMR2 =
+//      TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
+//          TIM_CCMR2_OC3PE;
+//
+//  TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
+//      TIM_CCER_CC2E | TIM_CCER_CC2P |
+//      TIM_CCER_CC3E | TIM_CCER_CC3P;
+//
+//  TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
+//}
 
 //void TIM3_IRQHandler(void) {
 //  uint32_t it_status = TIM3->SR & TIM3->DIER;
@@ -278,36 +257,11 @@ void my_sleep(int milis) {
   }
 }
 
-void setRedLEDPower(int power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
-  if (power_percent) TIM3->CCR1 = calc_pwm(power_percent);
-  else
-    TIM3->CCR1 = LED_OFF;
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
-}
-
-void setGreenLEDPower(int power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
-  if (power_percent) TIM3->CCR2 = calc_pwm(power_percent);
-  else
-    TIM3->CCR2 = LED_OFF;
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
-}
-
-void setBlueLEDPower(int power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
-  if (power_percent) TIM3->CCR3 = calc_pwm(power_percent);
-  else
-    TIM3->CCR3 = LED_OFF;
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
-}
-
 int main() {
   set_clock();
   basic_configuration();
   configurate_leds();
 
-  config_timer_leds();
   configurate_timer();
 
   configurate_i2c();
@@ -318,11 +272,8 @@ int main() {
 
   log_event("start\r\n");
   for (;;) {
-//    my_sleep(100);
     read_from_accelerometer(OUT_X, "X: ");
-//    my_sleep(100);
     read_from_accelerometer(OUT_Y, "Y: ");
-//    my_sleep(100);
     read_from_accelerometer(OUT_Z, "Z: ");
   }
 }
