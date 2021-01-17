@@ -150,7 +150,7 @@ void write_to_accelerometer() {
   I2C1->CR1 |= I2C_CR1_STOP;
 }
 
-void read_from_accelerometer(uint8_t reg, char *name) {
+void read_from_accelerometer(uint8_t reg) {
   // Start
   I2C1->CR1 |= I2C_CR1_START;
   while (!(I2C1->SR1 & I2C_SR1_SB)) {}
@@ -191,63 +191,6 @@ void read_from_accelerometer(uint8_t reg, char *name) {
   }
 }
 
-//// Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
-//float calc_pwm(float val) {
-//  const float k = 0.1f;
-//  const float x0 = 60.0f;
-//  return TIM3->ARR / (1.0f + expf(-k * (val - x0)));
-//}
-
-//void configurate_timer() {
-////  TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF);
-////  TIM3->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE | TIM_DIER_CC2IE;
-////  NVIC_EnableIRQ(TIM3_IRQn);
-//
-//  TIM3->PSC = 1;
-//  TIM3->ARR = 16000;
-//  TIM3->EGR = TIM_EGR_UG;
-//  TIM3->CCR1 = 0;   // Red
-//  TIM3->CCR2 = 0;   // Green
-//  TIM3->CCR3 = 0;   // Blue
-//
-//  TIM3->CCMR1 =
-//      TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
-//          TIM_CCMR1_OC1PE |
-//          TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 |
-//          TIM_CCMR1_OC2PE;
-//
-//  TIM3->CCMR2 =
-//      TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
-//          TIM_CCMR2_OC3PE;
-//
-//  TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
-//      TIM_CCER_CC2E | TIM_CCER_CC2P |
-//      TIM_CCER_CC3E | TIM_CCER_CC3P;
-//
-//  TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
-//}
-
-//void TIM3_IRQHandler(void) {
-//  uint32_t it_status = TIM3->SR & TIM3->DIER;
-//
-//  if (it_status & TIM_SR_UIF) {
-//    TIM3->SR = ~TIM_SR_UIF;
-//    log_event("TIM_SR_UIF\r\n");
-//  }
-//
-//  if (it_status & TIM_SR_CC1IF) {
-//    TIM3->SR = ~TIM_SR_CC1IF;
-//    log_event("TIM_SR_CC1IF\r\n");
-//    BlueLEDon();
-//  }
-//
-//  if (it_status & TIM_SR_CC2IF) {
-//    TIM3->SR = ~TIM_SR_CC2IF;
-//    log_event("TIM_SR_CC2IF\r\n");
-//    BlueLEDoff();
-//  }
-//}
-
 void my_sleep(int milis) {
 #define STEPS_PER_MILI 4000
   for (int ms = 0; ms < milis; ms++) {
@@ -257,23 +200,28 @@ void my_sleep(int milis) {
   }
 }
 
+void TIM3_IRQHandler(void) {
+  uint32_t it_status = TIM3->SR & TIM3->DIER;
+
+  if (it_status & TIM_SR_CC4IF) {
+    TIM3->SR = ~TIM_SR_CC4IF;
+    read_from_accelerometer(OUT_X);
+    read_from_accelerometer(OUT_Y);
+    read_from_accelerometer(OUT_Z);
+  }
+}
+
 int main() {
   set_clock();
   basic_configuration();
   configurate_leds();
 
   configurate_timer();
-
   configurate_i2c();
 
   all_leds_off();
-
   write_to_accelerometer();
 
   log_event("start\r\n");
-  for (;;) {
-    read_from_accelerometer(OUT_X, "X: ");
-    read_from_accelerometer(OUT_Y, "Y: ");
-    read_from_accelerometer(OUT_Z, "Z: ");
-  }
+  for (;;) {}
 }
