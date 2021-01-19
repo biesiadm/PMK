@@ -80,12 +80,14 @@ void config_accelerometer() {
   I2C1->CR1 |= I2C_CR1_START;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_SB) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 
   I2C1->DR = LIS35DE_ADDR << 1;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_ADDR) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
   I2C1->SR2;
@@ -93,6 +95,7 @@ void config_accelerometer() {
   I2C1->DR = LIS35_REG_CR1;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_TXE) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 
@@ -102,6 +105,7 @@ void config_accelerometer() {
       LIS35_REG_CR1_ZEN;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_BTF) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 
@@ -121,12 +125,14 @@ void i2c_start(uint8_t slave_register) {
   I2C1->CR1 |= I2C_CR1_START;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_SB) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 
   I2C1->DR = LIS35DE_ADDR << 1;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_ADDR) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
   I2C1->SR2;
@@ -134,6 +140,7 @@ void i2c_start(uint8_t slave_register) {
   I2C1->DR = slave_register;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_BTF) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 }
@@ -144,6 +151,7 @@ void i2c_repeated_start() {
   I2C1->CR1 |= I2C_CR1_START;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_SB) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
 
@@ -151,6 +159,7 @@ void i2c_repeated_start() {
   I2C1->CR1 &= ~I2C_CR1_ACK;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_ADDR) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return;
   }
   I2C1->SR2;
@@ -162,6 +171,7 @@ int8_t i2c_stop() {
   I2C1->CR1 |= I2C_CR1_STOP;
   for (tries = 0; !(I2C1->SR1 & I2C_SR1_RXNE) && tries < TRIES_LIMIT; tries++) {}
   if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
     return 0;
   }
 

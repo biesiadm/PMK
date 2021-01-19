@@ -24,8 +24,8 @@ void configuration() {
   configurate_dma();
   configurate_leds();     // FIXME is necessary?
 
-  configurate_timer();
   configurate_i2c();
+  configurate_timer();
 
   all_leds_off();
 }
