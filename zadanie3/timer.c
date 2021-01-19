@@ -12,7 +12,6 @@
 #define BLUE_LED_PIN   0
 
 static const int LED_OFF = 0;
-static const int ACC_CHECK = 100;
 
 static void config_timer_leds();
 static float calc_pwm(float val);
@@ -28,7 +27,6 @@ void configurate_timer() {
   TIM3->CCR1 = 0;   // Red
   TIM3->CCR2 = 0;   // Green
   TIM3->CCR3 = 0;   // Blue
-//  TIM3->CCR4 = ACC_CHECK; // acc check
 
   TIM3->CCMR1 =
       TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
@@ -43,17 +41,6 @@ void configurate_timer() {
   TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
       TIM_CCER_CC2E | TIM_CCER_CC2P |
       TIM_CCER_CC3E | TIM_CCER_CC3P;
-
-//  TIM3->CCMR2 =
-//      TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
-//          TIM_CCMR2_OC3PE |
-//          TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 |
-//          TIM_CCMR2_OC4PE;
-//
-//  TIM3->CCER = TIM_CCER_CC1E | TIM_CCER_CC1P |
-//      TIM_CCER_CC2E | TIM_CCER_CC2P |
-//      TIM_CCER_CC3E | TIM_CCER_CC3P |
-//      TIM_CCER_CC4E | TIM_CCER_CC4P;
 
   TIM3->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
 }
@@ -112,9 +99,3 @@ void enable_interrupts() {
   TIM3->DIER = TIM_DIER_UIE;
   NVIC_EnableIRQ(TIM3_IRQn);
 }
-
-//void enable_interrupts() {
-//  TIM3->SR = ~(TIM_SR_CC4IF);
-//  TIM3->DIER = TIM_DIER_CC4IE;
-//  NVIC_EnableIRQ(TIM3_IRQn);
-//}

@@ -1,7 +1,7 @@
 #include <gpio.h>
 #include <stm32.h>
 #include "leds.h"
-#include "print_dma.h"
+#include "dma.h"
 #include "timer.h"
 #include "i2c.h"
 
@@ -92,14 +92,10 @@ void TIM3_IRQHandler(void) {
 
   if (it_status & TIM_SR_UIF) {
     TIM3->SR = ~TIM_SR_UIF;
+    Green2LEDoff();
     update_leds_by_acc();
+    Green2LEDon();
   }
-
-//  if (it_status & TIM_SR_CC4IF) {
-//    TIM3->SR = ~TIM_SR_CC4IF;
-//    Green2LEDoff();
-//    update_leds_by_acc();
-//  }
 }
 
 
@@ -112,7 +108,7 @@ int main() {
   configurate_i2c();
 
   all_leds_off();
-  for (;;) {
-    Green2LEDon();
-  }
+  Green2LEDon();
+
+  for (;;) {}
 }

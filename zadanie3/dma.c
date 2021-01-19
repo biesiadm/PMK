@@ -1,5 +1,5 @@
 #include <stm32.h>
-#include "print_dma.h"
+#include "dma.h"
 
 // Bufory
 
@@ -10,14 +10,38 @@ char cyclic_buffer[BUFF_SIZE];
 int cyclic_buffer_start = BUFF_START;
 int cyclic_buffer_end = BUFF_START;
 
+static void activate_send_stream(int to_send_len);
+static void try_to_send_msg();
+static void fill_buffer(const char *msg);
 
-static void activate_send_stream(int to_send_len) {
+
+void configurate_dma() {
+
+}
+
+void log_event(const char *message) {
+  fill_buffer(message);
+}
+
+void DMA1_Stream6_IRQHandler() {
+  /* Odczytaj zgłoszone przerwania DMA1. */
+  uint32_t isr = DMA1->HISR;
+
+  if (isr & DMA_HISR_TCIF6) {
+    /* Obsłuż zakończenie transferu w strumieniu 6. */
+    DMA1->HIFCR = DMA_HIFCR_CTCIF6;
+
+    try_to_send_msg();
+  }
+}
+
+void activate_send_stream(int to_send_len) {
   DMA1_Stream6->M0AR = (uint32_t) (cyclic_buffer + cyclic_buffer_start);
   DMA1_Stream6->NDTR = to_send_len;
   DMA1_Stream6->CR |= DMA_SxCR_EN;
 }
 
-static void try_to_send_msg() {
+void try_to_send_msg() {
   if ((DMA1_Stream6->CR & DMA_SxCR_EN) == 0 &&
       (DMA1->HISR & DMA_HISR_TCIF6) == 0 &&
       cyclic_buffer_start != cyclic_buffer_end) {
@@ -38,7 +62,7 @@ static void try_to_send_msg() {
   }
 }
 
-static void fill_buffer(const char *msg) {
+void fill_buffer(const char *msg) {
   for (int i = 0; msg[i] != 0; i++) {
     cyclic_buffer[cyclic_buffer_end++] = msg[i];
 
@@ -48,20 +72,4 @@ static void fill_buffer(const char *msg) {
   }
 
   try_to_send_msg();
-}
-
-void log_event(const char *message) {
-  fill_buffer(message);
-}
-
-void DMA1_Stream6_IRQHandler() {
-  /* Odczytaj zgłoszone przerwania DMA1. */
-  uint32_t isr = DMA1->HISR;
-
-  if (isr & DMA_HISR_TCIF6) {
-    /* Obsłuż zakończenie transferu w strumieniu 6. */
-    DMA1->HIFCR = DMA_HIFCR_CTCIF6;
-
-    try_to_send_msg();
-  }
 }

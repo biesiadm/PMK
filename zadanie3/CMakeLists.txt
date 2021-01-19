@@ -7,7 +7,7 @@ set(CMAKE_CPP_FLAGS DSTM32F411xE)
 add_executable(zadanie3
         main.c
         leds.c leds.h
-        print_dma.c print_dma.h
+        dma.c dma.h
         timer.c timer.h
         i2c.c i2c.h
         utils.c utils.h)
