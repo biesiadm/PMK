@@ -2,6 +2,8 @@
 #include <gpio.h>
 #include <math.h>
 #include "timer.h"
+#include "leds.h"
+#include "i2c.h"
 
 #define RED_LED_GPIO    GPIOA
 #define GREEN_LED_GPIO  GPIOA
@@ -73,6 +75,17 @@ void setBlueLEDPower(unsigned power_percent) {
     TIM3->CCR3 = LED_OFF;
   }
   TIM3->CR1 &= ~TIM_CR1_UDIS;
+}
+
+void TIM3_IRQHandler(void) {
+  uint32_t it_status = TIM3->SR & TIM3->DIER;
+
+  if (it_status & TIM_SR_UIF) {
+    TIM3->SR = ~TIM_SR_UIF;
+    Green2LEDoff();
+    update_leds_by_acc();
+    Green2LEDon();
+  }
 }
 
 // Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334
