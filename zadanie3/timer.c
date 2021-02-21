@@ -85,7 +85,6 @@ void TIM3_IRQHandler(void) {
   if (it_status & TIM_SR_UIF) {
     TIM3->SR = ~TIM_SR_UIF;
     Green2LEDoff();
-//    update_leds_by_acc();
     set_update_flag();
     Green2LEDon();
   }
