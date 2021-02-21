@@ -22,12 +22,10 @@ void set_clock() {
 void configuration() {
   set_clock();
   configurate_dma();
-  configurate_leds();     // FIXME is necessary?
+  configurate_leds();
 
   configurate_i2c();
   configurate_timer();
-
-  all_leds_off();
 }
 
 int main() {
