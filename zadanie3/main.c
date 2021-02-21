@@ -32,5 +32,7 @@ int main() {
   configuration();
   Green2LEDon();
 
-  while (1) {}
+  while (1) {
+    check_updates();
+  }
 }

@@ -6,6 +6,7 @@ void setRedLEDPower(unsigned power_percent);
 void setGreenLEDPower(unsigned power_percent);
 void setBlueLEDPower(unsigned power_percent);
 void TIM3_IRQHandler(void);
+void check_updates();
 
 
 #endif //ZADANIE3__TIMER_H_

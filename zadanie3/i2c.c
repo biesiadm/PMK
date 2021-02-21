@@ -19,6 +19,9 @@
 #define OUT_Y 0x2B
 #define OUT_Z 0x2D
 
+static const uint32_t READ = 1;
+static const uint32_t WRITE = 0;
+
 static const int TRIES_LIMIT = I2C_SPEED_HZ / 10;
 
 static void update_red_by_acc(uint8_t slave_register);
@@ -103,6 +106,10 @@ void config_accelerometer() {
 
   I2C1->CR1 |= I2C_CR1_STOP;
 }
+//
+//void i2c_write_read() {
+//
+//}
 
 int8_t read_from_accelerometer(uint8_t slave_register) {
   i2c_start(slave_register);

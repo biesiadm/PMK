@@ -14,10 +14,12 @@
 #define BLUE_LED_PIN   0
 
 static const int LED_OFF = 0;
+static int UPDATE_LEDS = 0;
 
 static void config_timer_leds();
 static float calc_pwm(float val);
 static void enable_interrupts();
+static void set_update_flag();
 
 void configurate_timer() {
   config_timer_leds();
@@ -83,7 +85,8 @@ void TIM3_IRQHandler(void) {
   if (it_status & TIM_SR_UIF) {
     TIM3->SR = ~TIM_SR_UIF;
     Green2LEDoff();
-    update_leds_by_acc();
+//    update_leds_by_acc();
+    set_update_flag();
     Green2LEDon();
   }
 }
@@ -111,4 +114,19 @@ void enable_interrupts() {
   TIM3->SR = ~(TIM_SR_UIF);
   TIM3->DIER = TIM_DIER_UIE;
   NVIC_EnableIRQ(TIM3_IRQn);
+}
+
+void set_update_flag() {
+  UPDATE_LEDS = 1;
+}
+
+void reset_update_flag() {
+  UPDATE_LEDS = 0;
+}
+
+void check_updates() {
+  if (UPDATE_LEDS) {
+    reset_update_flag();
+    update_leds_by_acc();
+  }
 }
