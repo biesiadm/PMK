@@ -35,6 +35,7 @@ static void i2c_send_addr(uint8_t slave_addr, int mode);
 static void i2c_send_data(uint8_t *to_send, int n);
 static void i2c_try_to_read(uint8_t slave_addr, uint8_t *to_receive, int m);
 static void i2c_read_data(uint8_t *to_receive, int m);
+static void i2c_send_start();
 static void i2c_start(uint8_t slave_register);
 static void i2c_repeated_start();
 static int8_t i2c_stop();
@@ -114,59 +115,81 @@ void config_accelerometer() {
 
 void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m) {
   i2c_try_to_send(slave_addr, to_send, n);
-  i2c_try_to_read(slave_addr, to_receive, m);
+  if (m) {
+    i2c_try_to_read(slave_addr, to_receive, m);
+  } else {
+    i2c_stop();
+  }
 }
 
 void i2c_try_to_send(uint8_t slave_addr, uint8_t *to_send, int n) {
   if (n) {
+    i2c_send_start();
+
     i2c_send_addr(slave_addr, WRITE);
+    if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) { return; }
+    I2C1->SR2;
+
     i2c_send_data(to_send, n);
   }
-}
-
-void i2c_send_addr(uint8_t slave_addr, int mode) {
-  I2C1->CR1 |= I2C_CR1_START;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) {
-    return;
-  }
-
-  I2C1->DR = slave_addr << 1 | (mode == READ);
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) {
-    return;
-  }
-  I2C1->SR2;
 }
 
 void i2c_send_data(uint8_t *to_send, int n) {
   for (int i = 0; i < n - 1; i++) {
     I2C1->DR = to_send[i];
-    if (!i2c_wait_for_bit_sr1(I2C_SR1_TXE)) {
-      return;
-    }
+    if (!i2c_wait_for_bit_sr1(I2C_SR1_TXE)) { return; }
   }
 
   I2C1->DR = to_send[n - 1];
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_BTF)) {
-    return;
-  }
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_BTF)) { return; }
 }
 
 void i2c_try_to_read(uint8_t slave_addr, uint8_t *to_receive, int m) {
   if (m) {
+    i2c_send_start();
+
     i2c_send_addr(slave_addr, READ);
+    I2C1->CR1 |= I2C_CR1_ACK;
+    if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) { return; }
+    I2C1->SR2;
+
     i2c_read_data(to_receive, m);
   }
 }
 
 void i2c_read_data(uint8_t *to_receive, int m) {
+  for (int i = 0; i < m - 1; i++) {
+    if (!i2c_wait_for_bit_sr1(I2C_SR1_RXNE)) { return; }
 
+    to_receive[i] = I2C1->DR;
+  }
+
+  I2C1->CR1 &= ~I2C_CR1_ACK;
+  I2C1->CR1 |= I2C_CR1_STOP;
+
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_RXNE)) { return; }
+
+  to_receive[m - 1] = I2C1->DR;
+}
+
+void i2c_send_start() {
+  I2C1->CR1 |= I2C_CR1_START;
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) { return; }
+}
+
+void i2c_send_addr(uint8_t slave_addr, int mode) {
+  I2C1->DR = slave_addr << 1 | (mode == READ);
 }
 
 int8_t read_from_accelerometer(uint8_t slave_register) {
-  i2c_start(slave_register);
-  i2c_repeated_start();
-
-  return i2c_stop();
+  uint8_t to_send[1] = {slave_register};
+  uint8_t to_recive = 0;
+  i2c_write_read(LIS35DE_ADDR, to_send, 1, &to_recive, 1);
+  return to_recive;
+//  i2c_start(slave_register);
+//  i2c_repeated_start();
+//
+//  return i2c_stop();
 }
 
 void i2c_start(uint8_t slave_register) {
