@@ -19,10 +19,9 @@
 #define OUT_Y 0x2B
 #define OUT_Z 0x2D
 
-static const uint32_t READ = 1;
-static const uint32_t WRITE = 0;
-
 static const int TRIES_LIMIT = I2C_SPEED_HZ / 10;
+static const int READ = 1;
+static const int WRITE = 0;
 
 static void update_red_by_acc(uint8_t slave_register);
 static void update_green_by_acc(uint8_t slave_register);
@@ -30,6 +29,12 @@ static void update_blue_by_acc(uint8_t slave_register);
 
 void config_accelerometer();
 static int8_t read_from_accelerometer(uint8_t slave_register);
+static void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m);
+static void i2c_try_to_send(uint8_t slave_addr, uint8_t *to_send, int n);
+static void i2c_send_addr(uint8_t slave_addr, int mode);
+static void i2c_send_data(uint8_t *to_send, int n);
+static void i2c_try_to_read(uint8_t slave_addr, uint8_t *to_receive, int m);
+static void i2c_read_data(uint8_t *to_receive, int m);
 static void i2c_start(uint8_t slave_register);
 static void i2c_repeated_start();
 static int8_t i2c_stop();
@@ -106,10 +111,56 @@ void config_accelerometer() {
 
   I2C1->CR1 |= I2C_CR1_STOP;
 }
-//
-//void i2c_write_read() {
-//
-//}
+
+void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m) {
+  i2c_try_to_send(slave_addr, to_send, n);
+  i2c_try_to_read(slave_addr, to_receive, m);
+}
+
+void i2c_try_to_send(uint8_t slave_addr, uint8_t *to_send, int n) {
+  if (n) {
+    i2c_send_addr(slave_addr, WRITE);
+    i2c_send_data(to_send, n);
+  }
+}
+
+void i2c_send_addr(uint8_t slave_addr, int mode) {
+  I2C1->CR1 |= I2C_CR1_START;
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) {
+    return;
+  }
+
+  I2C1->DR = slave_addr << 1 | (mode == READ);
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) {
+    return;
+  }
+  I2C1->SR2;
+}
+
+void i2c_send_data(uint8_t *to_send, int n) {
+  for (int i = 0; i < n - 1; i++) {
+    I2C1->DR = to_send[i];
+    if (!i2c_wait_for_bit_sr1(I2C_SR1_TXE)) {
+      return;
+    }
+  }
+
+  I2C1->DR = to_send[n - 1];
+  if (!i2c_wait_for_bit_sr1(I2C_SR1_BTF)) {
+    return;
+  }
+}
+
+void i2c_try_to_read(uint8_t slave_addr, uint8_t *to_receive, int m) {
+  if (m) {
+    i2c_send_addr(slave_addr, READ);
+    i2c_read_data(to_receive, m);
+  }
+}
+
+void i2c_read_data(uint8_t *to_receive, int m) {
+
+}
 
 int8_t read_from_accelerometer(uint8_t slave_register) {
   i2c_start(slave_register);
