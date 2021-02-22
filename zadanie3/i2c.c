@@ -30,15 +30,12 @@ static void update_blue_by_acc(uint8_t slave_register);
 void config_accelerometer();
 static int8_t read_from_accelerometer(uint8_t slave_register);
 static void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m);
-static void i2c_try_to_send(uint8_t slave_addr, uint8_t *to_send, int n);
+static void i2c_try_to_write(uint8_t slave_addr, uint8_t *to_send, int n);
 static void i2c_send_addr(uint8_t slave_addr, int mode);
 static void i2c_send_data(uint8_t *to_send, int n);
 static void i2c_try_to_read(uint8_t slave_addr, uint8_t *to_receive, int m);
 static void i2c_read_data(uint8_t *to_receive, int m);
 static void i2c_send_start();
-static void i2c_start(uint8_t slave_register);
-static void i2c_repeated_start();
-static int8_t i2c_stop();
 static unsigned calculate_acc_percent(uint8_t slave_register);
 static unsigned calculate_int8_percent(int8_t value);
 static bool i2c_wait_for_bit_sr1(uint32_t bit);
@@ -86,42 +83,19 @@ void update_blue_by_acc(uint8_t slave_register) {
 }
 
 void config_accelerometer() {
-  uint8_t to_send[2] = {LIS35_REG_CR1,
+  uint8_t to_send[2] = {
+      LIS35_REG_CR1,
       LIS35_REG_CR1_ACTIVE |
           LIS35_REG_CR1_XEN |
           LIS35_REG_CR1_YEN |
-          LIS35_REG_CR1_ZEN};
+          LIS35_REG_CR1_ZEN
+  };
 
   i2c_write_read(LIS35DE_ADDR, to_send, 2, 0, 0);
-//  I2C1->CR1 |= I2C_CR1_START;
-//  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) {
-//    return;
-//  }
-//
-//  I2C1->DR = LIS35DE_ADDR << 1;
-//  if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) {
-//    return;
-//  }
-//  I2C1->SR2;
-//
-//  I2C1->DR = LIS35_REG_CR1;
-//  if (!i2c_wait_for_bit_sr1(I2C_SR1_TXE)) {
-//    return;
-//  }
-//
-//  I2C1->DR = LIS35_REG_CR1_ACTIVE |
-//      LIS35_REG_CR1_XEN |
-//      LIS35_REG_CR1_YEN |
-//      LIS35_REG_CR1_ZEN;
-//  if (!i2c_wait_for_bit_sr1(I2C_SR1_BTF)) {
-//    return;
-//  }
-//
-//  I2C1->CR1 |= I2C_CR1_STOP;
 }
 
 void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m) {
-  i2c_try_to_send(slave_addr, to_send, n);
+  i2c_try_to_write(slave_addr, to_send, n);
   if (to_receive && m) {
     i2c_try_to_read(slave_addr, to_receive, m);
   } else {
@@ -129,7 +103,7 @@ void i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_rec
   }
 }
 
-void i2c_try_to_send(uint8_t slave_addr, uint8_t *to_send, int n) {
+void i2c_try_to_write(uint8_t slave_addr, uint8_t *to_send, int n) {
   if (to_send && n) {
     i2c_send_start();
 
@@ -188,57 +162,26 @@ void i2c_send_addr(uint8_t slave_addr, int mode) {
   I2C1->DR = slave_addr << 1 | (mode == READ);
 }
 
+bool i2c_wait_for_bit_sr1(uint32_t bit) {
+  int tries = 0;
+  while (!(I2C1->SR1 & bit) && tries < TRIES_LIMIT) {
+    tries++;
+  }
+
+  if (tries == TRIES_LIMIT) {
+    I2C1->CR1 |= I2C_CR1_STOP;
+    return false;
+  }
+
+  return true;
+}
+
 int8_t read_from_accelerometer(uint8_t slave_register) {
   uint8_t to_send[1] = {slave_register};
-  uint8_t to_recive = 0;
-  i2c_write_read(LIS35DE_ADDR, to_send, 1, &to_recive, 1);
-  return to_recive;
-//  i2c_start(slave_register);
-//  i2c_repeated_start();
-//
-//  return i2c_stop();
-}
+  uint8_t to_recive[1] = {0};
+  i2c_write_read(LIS35DE_ADDR, to_send, 1, to_recive, 1);
 
-void i2c_start(uint8_t slave_register) {
-  I2C1->CR1 |= I2C_CR1_START;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) {
-    return;
-  }
-
-  I2C1->DR = LIS35DE_ADDR << 1;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) {
-    return;
-  }
-  I2C1->SR2;
-
-  I2C1->DR = slave_register;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_BTF)) {
-    return;
-  }
-}
-
-void i2c_repeated_start() {
-  I2C1->CR1 |= I2C_CR1_START;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_SB)) {
-    return;
-  }
-
-  I2C1->DR = LIS35DE_ADDR << 1 | 1;
-  I2C1->CR1 &= ~I2C_CR1_ACK;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_ADDR)) {
-    return;
-  }
-
-  I2C1->SR2;
-}
-
-int8_t i2c_stop() {
-  I2C1->CR1 |= I2C_CR1_STOP;
-  if (!i2c_wait_for_bit_sr1(I2C_SR1_RXNE)) {
-    return 0;
-  }
-
-  return I2C1->DR;
+  return to_recive[0];
 }
 
 unsigned calculate_acc_percent(uint8_t slave_register) {
@@ -252,18 +195,4 @@ unsigned calculate_int8_percent(int8_t value) {
   }
 
   return ((((unsigned) value) * 100) / INT8_MAX) % 100;
-}
-
-bool i2c_wait_for_bit_sr1(uint32_t bit) {
-  int tries = 0;
-  while (!(I2C1->SR1 & bit) && tries < TRIES_LIMIT) {
-    tries++;
-  }
-
-  if (tries == TRIES_LIMIT) {
-    I2C1->CR1 |= I2C_CR1_STOP;
-    return false;
-  }
-
-  return true;
 }
