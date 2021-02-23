@@ -50,33 +50,27 @@ void configurate_timer() {
 }
 
 void setRedLEDPower(unsigned power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) {
     TIM3->CCR1 = calc_pwm(power_percent);
   } else {
     TIM3->CCR1 = LED_OFF;
   }
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 void setGreenLEDPower(unsigned power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) {
     TIM3->CCR2 = calc_pwm(power_percent);
   } else {
     TIM3->CCR2 = LED_OFF;
   }
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 void setBlueLEDPower(unsigned power_percent) {
-  TIM3->CR1 |= TIM_CR1_UDIS;
   if (power_percent) {
     TIM3->CCR3 = calc_pwm(power_percent);
   } else {
     TIM3->CCR3 = LED_OFF;
   }
-  TIM3->CR1 &= ~TIM_CR1_UDIS;
 }
 
 void TIM3_IRQHandler(void) {
