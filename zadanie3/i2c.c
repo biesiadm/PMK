@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include "i2c.h"
 #include "timer.h"
+#include "dma.h"
 
 #define I2C_SPEED_HZ 100000
 #define PCLK1_MHZ 16
@@ -27,7 +28,8 @@ static void update_red_by_acc(uint8_t slave_register);
 static void update_green_by_acc(uint8_t slave_register);
 static void update_blue_by_acc(uint8_t slave_register);
 
-void config_accelerometer();
+static void enable_interrupts();
+static void config_accelerometer();
 static int8_t read_from_accelerometer(uint8_t slave_register);
 static bool i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m);
 static bool i2c_try_to_write(uint8_t slave_addr, uint8_t *to_send, int n);
@@ -58,6 +60,7 @@ void configurate_i2c() {
 
   I2C1->CR1 |= I2C_CR1_PE;
 
+  enable_interrupts();
   config_accelerometer();
 }
 
@@ -65,6 +68,40 @@ void update_leds_by_acc() {
   update_red_by_acc(OUT_X);
   update_green_by_acc(OUT_Y);
   update_blue_by_acc(OUT_Z);
+}
+
+void I2C1_EV_IRQHandler(void) {
+  uint32_t it_status = I2C1->SR1;
+  log_event("I2C_EV\r\n");
+  I2C1->SR2;
+  I2C1->DR = 0;
+  if (it_status & I2C_CR2_ITBUFEN) {
+    log_event("I2C_EV_ITBUFEN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITBUFEN;
+  } else if (it_status & I2C_CR2_ITEVTEN) {
+    log_event("I2C_EV_ITEVTEN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITEVTEN;
+  } else if (it_status & I2C_CR2_ITERREN) {
+    log_event("I2C_EV_ITERREN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITERREN;
+  }
+}
+
+void I2C1_ER_IRQHandler(void) {
+  uint32_t it_status = I2C1->SR1 & I2C1->CR2;
+//  log_event("I2c_ER\r\n");
+  I2C1->SR2;
+  I2C1->DR = 0;
+  if (it_status & I2C_CR2_ITBUFEN) {
+    log_event("I2C_ER_ITBUFEN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITBUFEN;
+  } else if (it_status & I2C_CR2_ITEVTEN) {
+    log_event("I2C_ER_ITEVTEN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITEVTEN;
+  } else if (it_status & I2C_CR2_ITERREN) {
+    log_event("I2C_ER_ITERREN\r\n");
+    I2C1->SR2 = ~I2C_CR2_ITERREN;
+  }
 }
 
 void update_red_by_acc(uint8_t slave_register) {
@@ -206,4 +243,11 @@ unsigned calculate_int8_percent(int8_t value) {
   }
 
   return ((((unsigned) value) * 100) / INT8_MAX) % 100;
+}
+
+void enable_interrupts() {
+//  I2C1->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN;
+  I2C1->CR2 = I2C_CR2_ITEVTEN | I2C_CR2_ITERREN;
+  NVIC_EnableIRQ(I2C1_EV_IRQn);
+  NVIC_EnableIRQ(I2C1_ER_IRQn);
 }
