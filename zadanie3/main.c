@@ -33,6 +33,8 @@ int main() {
   Green2LEDon();
 
   while (1) {
-    check_updates();
+    if (flag_true()) {
+      check_updates();
+    }
   }
 }

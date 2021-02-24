@@ -20,6 +20,8 @@
 #define OUT_Y 0x2B
 #define OUT_Z 0x2D
 
+volatile int FLAG = 0;
+
 static const int TRIES_LIMIT = I2C_SPEED_HZ / 10;
 static const int READ = 1;
 static const int WRITE = 0;
@@ -61,7 +63,8 @@ void configurate_i2c() {
   I2C1->CR1 |= I2C_CR1_PE;
 
   enable_interrupts();
-  config_accelerometer();
+  I2C1->CR1 |= I2C_CR1_START;
+//  config_accelerometer();
 }
 
 void update_leds_by_acc() {
@@ -70,37 +73,52 @@ void update_leds_by_acc() {
   update_blue_by_acc(OUT_Z);
 }
 
+int flag_true() {
+  return FLAG;
+}
+
 void I2C1_EV_IRQHandler(void) {
-  uint32_t it_status = I2C1->SR1;
-  log_event("I2C_EV\r\n");
-  I2C1->SR2;
-  I2C1->DR = 0;
-  if (it_status & I2C_CR2_ITBUFEN) {
-    log_event("I2C_EV_ITBUFEN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITBUFEN;
-  } else if (it_status & I2C_CR2_ITEVTEN) {
-    log_event("I2C_EV_ITEVTEN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITEVTEN;
-  } else if (it_status & I2C_CR2_ITERREN) {
-    log_event("I2C_EV_ITERREN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITERREN;
+  uint16_t it_status = I2C1->SR1;
+
+  if (it_status & I2C_SR1_SB) {
+    log_event("EV_SB\r\n");
+    i2c_send_addr(LIS35DE_ADDR, WRITE);
+  } else if (it_status & I2C_SR1_ADDR) {
+    log_event("EV_ADDR\r\n");
+    I2C1->SR2;
+    I2C1->DR = LIS35_REG_CR1;
+    I2C1->CR2 |= I2C_CR2_ITBUFEN;
+  } else if (it_status & I2C_SR1_BTF) {
+    log_event("EV_BTF\r\n");
+    I2C1->CR1 |= I2C_CR1_STOP;
+    I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
+    FLAG = 1;
+  } else if (it_status & I2C_SR1_TXE) {
+    log_event("EV_TXE\r\n");
+    I2C1->DR = LIS35_REG_CR1_ACTIVE |
+        LIS35_REG_CR1_XEN |
+        LIS35_REG_CR1_YEN |
+        LIS35_REG_CR1_ZEN;
+    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+  } else if (it_status & I2C_SR1_RXNE) {
+    log_event("EV_RXNE\r\n");
   }
 }
 
 void I2C1_ER_IRQHandler(void) {
-  uint32_t it_status = I2C1->SR1 & I2C1->CR2;
-//  log_event("I2c_ER\r\n");
-  I2C1->SR2;
-  I2C1->DR = 0;
-  if (it_status & I2C_CR2_ITBUFEN) {
-    log_event("I2C_ER_ITBUFEN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITBUFEN;
-  } else if (it_status & I2C_CR2_ITEVTEN) {
-    log_event("I2C_ER_ITEVTEN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITEVTEN;
-  } else if (it_status & I2C_CR2_ITERREN) {
-    log_event("I2C_ER_ITERREN\r\n");
-    I2C1->SR2 = ~I2C_CR2_ITERREN;
+  uint32_t it_status = I2C1->SR1;
+  log_event("I2c_ER\r\n");
+
+  if (it_status & I2C_SR1_SB) {
+    log_event("ER_SB\r\n");
+  } else if (it_status & I2C_SR1_ADDR) {
+    log_event("ER_ADDR\r\n");
+  } else if (it_status & I2C_SR1_BTF) {
+    log_event("ER_BTF\r\n");
+  } else if (it_status & I2C_SR1_TXE) {
+    log_event("ER_TXE\r\n");
+  } else if (it_status & I2C_SR1_RXNE) {
+    log_event("ER_RXNE\r\n");
   }
 }
 
@@ -248,6 +266,7 @@ unsigned calculate_int8_percent(int8_t value) {
 void enable_interrupts() {
 //  I2C1->CR2 = I2C_CR2_ITBUFEN | I2C_CR2_ITEVTEN | I2C_CR2_ITERREN;
   I2C1->CR2 = I2C_CR2_ITEVTEN | I2C_CR2_ITERREN;
+//  I2C1->CR2 = I2C_CR2_ITERREN;
   NVIC_EnableIRQ(I2C1_EV_IRQn);
   NVIC_EnableIRQ(I2C1_ER_IRQn);
 }
