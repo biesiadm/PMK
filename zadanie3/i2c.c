@@ -20,6 +20,8 @@
 #define OUT_Y 0x2B
 #define OUT_Z 0x2D
 
+#define MAX_COMM_SIZE 16
+
 volatile int FLAG = 0;
 
 static const int TRIES_LIMIT = I2C_SPEED_HZ / 10;
@@ -44,6 +46,54 @@ static unsigned calculate_acc_percent(uint8_t slave_register);
 static unsigned calculate_int8_percent(int8_t value);
 static bool i2c_wait_for_bit_sr1(uint32_t bit);
 
+typedef struct i2c_command {
+  uint8_t to_send[MAX_COMM_SIZE];
+  uint8_t *to_receive;
+  uint8_t slave_addr;
+  int send_size;
+  int recv_size;
+  int already_sent;
+  int already_recv;
+} i2c_command_t;
+
+i2c_command_t CURR_CMD;
+
+i2c_command_t command_buffer[MAX_COMM_SIZE] = {0};
+
+i2c_command_t* get_curr_command() {
+  return command_buffer;
+}
+
+void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send, int send_size, uint8_t *to_receive, int recv_size) {
+//  i2c_command_t *c = get_curr_command();
+  i2c_command_t *c = &CURR_CMD;
+  c->slave_addr = slave_addr;
+
+  c->send_size = send_size;
+  for (int i = 0; i < send_size; i++) {
+    c->to_send[i] = to_send[i];
+  }
+
+  c->to_receive = to_receive;
+  c->recv_size = recv_size;
+
+  c->already_sent = 0;
+  c->already_recv = 0;
+}
+
+//uint8_t get_curr_command_addr() {
+//  return get_curr_command().slave_addr;
+//}
+//
+//uint16_t get_curr_byte_to_send() {
+//  i2c_command_t curr_command = get_curr_command();
+//  if (curr_command.send_size == curr_command.already_sent) {
+//    return UINT16_MAX;
+//  }
+//
+//  return curr_command.to_send[curr_command.already_sent++];
+//}
+
 void configurate_i2c() {
   // Konfiguracja SCL na PB8
   GPIOafConfigure(GPIOB, 8, GPIO_OType_OD,
@@ -63,6 +113,15 @@ void configurate_i2c() {
   I2C1->CR1 |= I2C_CR1_PE;
 
   enable_interrupts();
+  uint8_t to_send[2] = {
+      LIS35_REG_CR1,
+      LIS35_REG_CR1_ACTIVE |
+          LIS35_REG_CR1_XEN |
+          LIS35_REG_CR1_YEN |
+          LIS35_REG_CR1_ZEN
+  };
+  add_to_command_buffer(LIS35DE_ADDR, to_send, 2, 0, 0);
+
   I2C1->CR1 |= I2C_CR1_START;
 //  config_accelerometer();
 }
@@ -77,29 +136,86 @@ int flag_true() {
   return FLAG;
 }
 
+//void I2C1_EV_IRQHandler(void) {
+//  uint16_t it_status = I2C1->SR1;
+//
+//  if (it_status & I2C_SR1_SB) {
+//    log_event("EV_SB\r\n");
+//    i2c_send_addr(LIS35DE_ADDR, WRITE);
+//  } else if (it_status & I2C_SR1_ADDR) {
+//    log_event("EV_ADDR\r\n");
+//    I2C1->SR2;
+//    I2C1->DR = LIS35_REG_CR1;
+//    I2C1->CR2 |= I2C_CR2_ITBUFEN;
+//  } else if (it_status & I2C_SR1_BTF) {
+//    log_event("EV_BTF\r\n");
+//    I2C1->CR1 |= I2C_CR1_STOP;
+//    I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
+//    FLAG = 1;
+//  } else if (it_status & I2C_SR1_TXE) {
+//    log_event("EV_TXE\r\n");
+//    I2C1->DR = LIS35_REG_CR1_ACTIVE |
+//        LIS35_REG_CR1_XEN |
+//        LIS35_REG_CR1_YEN |
+//        LIS35_REG_CR1_ZEN;
+//    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+//  } else if (it_status & I2C_SR1_RXNE) {
+//    log_event("EV_RXNE\r\n");
+//  }
+//}
+
 void I2C1_EV_IRQHandler(void) {
   uint16_t it_status = I2C1->SR1;
+//  i2c_command_t *curr_command = get_curr_command();
+  i2c_command_t *curr_command = &CURR_CMD;
+  log_event("EV_HANDLER\r\n");
 
   if (it_status & I2C_SR1_SB) {
     log_event("EV_SB\r\n");
-    i2c_send_addr(LIS35DE_ADDR, WRITE);
+    if (curr_command->send_size == curr_command->already_sent) {
+      i2c_send_addr(curr_command->slave_addr, READ);
+      I2C1->CR1 |= I2C_CR1_ACK;
+    } else {
+      i2c_send_addr(curr_command->slave_addr, WRITE);
+    }
+
   } else if (it_status & I2C_SR1_ADDR) {
     log_event("EV_ADDR\r\n");
     I2C1->SR2;
-    I2C1->DR = LIS35_REG_CR1;
-    I2C1->CR2 |= I2C_CR2_ITBUFEN;
+    if (curr_command->already_sent < curr_command->send_size) {
+      I2C1->DR = curr_command->to_send[curr_command->already_sent];
+      curr_command->already_sent++;
+
+      if (curr_command->already_sent == curr_command->send_size) {
+        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+      } else {
+        I2C1->CR2 |= I2C_CR2_ITBUFEN;
+      }
+    }
   } else if (it_status & I2C_SR1_BTF) {
     log_event("EV_BTF\r\n");
-    I2C1->CR1 |= I2C_CR1_STOP;
-    I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
-    FLAG = 1;
+
+    if (curr_command->recv_size == 0) {
+      I2C1->CR1 |= I2C_CR1_STOP;
+      I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
+      FLAG = 1;
+    }
   } else if (it_status & I2C_SR1_TXE) {
     log_event("EV_TXE\r\n");
-    I2C1->DR = LIS35_REG_CR1_ACTIVE |
-        LIS35_REG_CR1_XEN |
-        LIS35_REG_CR1_YEN |
-        LIS35_REG_CR1_ZEN;
-    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+
+    if (curr_command->already_sent < curr_command->send_size) {
+      I2C1->DR = curr_command->to_send[curr_command->already_sent];
+      curr_command->already_sent++;
+
+      if (curr_command->already_sent == curr_command->send_size) {
+        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+      }
+    }
+//    I2C1->DR = LIS35_REG_CR1_ACTIVE |
+//        LIS35_REG_CR1_XEN |
+//        LIS35_REG_CR1_YEN |
+//        LIS35_REG_CR1_ZEN;
+//    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
   } else if (it_status & I2C_SR1_RXNE) {
     log_event("EV_RXNE\r\n");
   }
