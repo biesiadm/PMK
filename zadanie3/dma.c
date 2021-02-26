@@ -37,9 +37,9 @@
 #define BUFF_SIZE 1024
 static const int BUFF_START = 0;
 
-char cyclic_buffer[BUFF_SIZE];
-int cyclic_buffer_start = BUFF_START;
-int cyclic_buffer_end = BUFF_START;
+static char cyclic_buffer[BUFF_SIZE];
+static int cyclic_buffer_start = BUFF_START;
+static int cyclic_buffer_end = BUFF_START;
 
 static void activate_send_stream(int to_send_len);
 static void try_to_send_msg();

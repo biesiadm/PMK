@@ -54,19 +54,69 @@ typedef struct i2c_command {
   int recv_size;
   int already_sent;
   int already_recv;
+  bool initialised;
+  bool after_send;
+  bool finished;
 } i2c_command_t;
 
-i2c_command_t CURR_CMD;
+static i2c_command_t command_buffer[MAX_COMM_SIZE] = {0};
+static int cyclic_buffer_start = 0;
+static int cyclic_buffer_end = 0;
+static uint8_t XYZ[3] = {0};
 
-i2c_command_t command_buffer[MAX_COMM_SIZE] = {0};
+static bool using_i2c = false;
 
-i2c_command_t* get_curr_command() {
-  return command_buffer;
+i2c_command_t *get_curr_command() {
+  i2c_command_t *curr_command = &command_buffer[cyclic_buffer_start];
+
+  if (curr_command->finished) {
+    cyclic_buffer_start++;
+  }
+
+  if (cyclic_buffer_start == MAX_COMM_SIZE) {
+    cyclic_buffer_start = 0;
+  }
+
+  curr_command = &command_buffer[cyclic_buffer_start];
+
+  if (!curr_command->initialised) {
+    curr_command = 0;
+  }
+
+  return curr_command;
 }
 
-void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send, int send_size, uint8_t *to_receive, int recv_size) {
-//  i2c_command_t *c = get_curr_command();
-  i2c_command_t *c = &CURR_CMD;
+i2c_command_t *get_next_free_command() {
+//  if ((cyclic_buffer_end == cyclic_buffer_start - 1) ||
+//      ((cyclic_buffer_end == MAX_COMM_SIZE - 1) && (cyclic_buffer_start == 0))) {
+//    return 0;
+//  }
+
+  i2c_command_t *next_free = &command_buffer[cyclic_buffer_end];
+  if (!next_free->initialised || next_free->finished) {
+    cyclic_buffer_end++;
+  } else{
+    return 0;
+  }
+//  i2c_command_t *next_free = &command_buffer[cyclic_buffer_end++];
+
+  if (cyclic_buffer_end == MAX_COMM_SIZE) {
+    cyclic_buffer_end = 0;
+  }
+
+  return next_free;
+}
+
+void add_to_command_buffer(uint8_t slave_addr,
+                           uint8_t *to_send,
+                           int send_size,
+                           uint8_t *to_receive,
+                           int recv_size) {
+  i2c_command_t *c = get_next_free_command();
+  if (!c) {
+    return;
+  }
+
   c->slave_addr = slave_addr;
 
   c->send_size = send_size;
@@ -79,20 +129,12 @@ void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send, int send_size, 
 
   c->already_sent = 0;
   c->already_recv = 0;
-}
+  c->initialised = true;
+  c->after_send = false;
+  c->finished = false;
 
-//uint8_t get_curr_command_addr() {
-//  return get_curr_command().slave_addr;
-//}
-//
-//uint16_t get_curr_byte_to_send() {
-//  i2c_command_t curr_command = get_curr_command();
-//  if (curr_command.send_size == curr_command.already_sent) {
-//    return UINT16_MAX;
-//  }
-//
-//  return curr_command.to_send[curr_command.already_sent++];
-//}
+//  I2C1->CR1 |= I2C_CR1_START;
+}
 
 void configurate_i2c() {
   // Konfiguracja SCL na PB8
@@ -121,7 +163,14 @@ void configurate_i2c() {
           LIS35_REG_CR1_ZEN
   };
   add_to_command_buffer(LIS35DE_ADDR, to_send, 2, 0, 0);
+//  to_send[0] = OUT_X;
+//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[0], 1);
+//  to_send[0] = OUT_Y;
+//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[1], 1);
+//  to_send[0] = OUT_Z;
+//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[2], 1);
 
+  using_i2c = true;
   I2C1->CR1 |= I2C_CR1_START;
 //  config_accelerometer();
 }
@@ -164,61 +213,106 @@ int flag_true() {
 //  }
 //}
 
+void try_to_send_addr(i2c_command_t *curr_command) {
+  if (curr_command->send_size == curr_command->already_sent) {
+    i2c_send_addr(curr_command->slave_addr, READ);
+    I2C1->CR1 |= I2C_CR1_ACK;
+  } else if (!curr_command->after_send) {
+    curr_command->after_send = true;
+    i2c_send_addr(curr_command->slave_addr, WRITE);
+  }
+}
+
+void try_to_send_bytes(i2c_command_t *curr_command) {
+  if (curr_command->already_sent == curr_command->send_size) {
+    I2C1->CR2 |= I2C_CR2_ITBUFEN;
+    return;
+  }
+
+  if (curr_command->already_sent < curr_command->send_size) {
+    I2C1->DR = curr_command->to_send[curr_command->already_sent];
+    curr_command->already_sent++;
+
+    if (curr_command->already_sent == curr_command->send_size) {
+      I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+    } else {
+      I2C1->CR2 |= I2C_CR2_ITBUFEN;
+    }
+  }
+}
+
+void send_bytes(i2c_command_t *curr_command) {
+  if (curr_command->already_sent < curr_command->send_size) {
+    I2C1->DR = curr_command->to_send[curr_command->already_sent];
+    curr_command->already_sent++;
+
+    if (curr_command->already_sent == curr_command->send_size) {
+      I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+    }
+  }
+}
+
+void read_bytes(i2c_command_t *curr_command) {
+  if (curr_command->already_recv < curr_command->recv_size - 1) {
+    curr_command->to_receive[curr_command->already_recv] = I2C1->DR;
+    curr_command->already_recv++;
+  } else if (curr_command->already_recv < curr_command->recv_size) {
+    curr_command->already_recv++;
+    I2C1->CR1 &= ~I2C_CR1_ACK;
+    I2C1->CR1 |= I2C_CR1_STOP;
+  } else {
+    curr_command->to_receive[curr_command->recv_size - 1] = I2C1->DR;
+    curr_command->finished = true;
+    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
+    using_i2c = false;
+//    I2C1->CR1 |= I2C_CR1_START;
+  }
+}
+
 void I2C1_EV_IRQHandler(void) {
   uint16_t it_status = I2C1->SR1;
-//  i2c_command_t *curr_command = get_curr_command();
-  i2c_command_t *curr_command = &CURR_CMD;
+  i2c_command_t *curr_command = get_curr_command();
+
+  if (!curr_command) {
+    log_event("EV_NO_CMD\r\n");
+    using_i2c = false;
+    return;
+  }
+
   log_event("EV_HANDLER\r\n");
 
   if (it_status & I2C_SR1_SB) {
     log_event("EV_SB\r\n");
-    if (curr_command->send_size == curr_command->already_sent) {
-      i2c_send_addr(curr_command->slave_addr, READ);
-      I2C1->CR1 |= I2C_CR1_ACK;
-    } else {
-      i2c_send_addr(curr_command->slave_addr, WRITE);
-    }
+    try_to_send_addr(curr_command);
 
   } else if (it_status & I2C_SR1_ADDR) {
     log_event("EV_ADDR\r\n");
-    I2C1->SR2;
-    if (curr_command->already_sent < curr_command->send_size) {
-      I2C1->DR = curr_command->to_send[curr_command->already_sent];
-      curr_command->already_sent++;
 
-      if (curr_command->already_sent == curr_command->send_size) {
-        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-      } else {
-        I2C1->CR2 |= I2C_CR2_ITBUFEN;
-      }
-    }
+    I2C1->SR2;
+    try_to_send_bytes(curr_command);
+
   } else if (it_status & I2C_SR1_BTF) {
     log_event("EV_BTF\r\n");
 
     if (curr_command->recv_size == 0) {
+      curr_command->finished = true;
+      using_i2c = false;
       I2C1->CR1 |= I2C_CR1_STOP;
-      I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
+//      I2C1->CR2 &= ~(I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
       FLAG = 1;
+    } else {
+      I2C1->CR1 |= I2C_CR1_START;
     }
   } else if (it_status & I2C_SR1_TXE) {
     log_event("EV_TXE\r\n");
+    send_bytes(curr_command);
 
-    if (curr_command->already_sent < curr_command->send_size) {
-      I2C1->DR = curr_command->to_send[curr_command->already_sent];
-      curr_command->already_sent++;
-
-      if (curr_command->already_sent == curr_command->send_size) {
-        I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-      }
-    }
-//    I2C1->DR = LIS35_REG_CR1_ACTIVE |
-//        LIS35_REG_CR1_XEN |
-//        LIS35_REG_CR1_YEN |
-//        LIS35_REG_CR1_ZEN;
-//    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
   } else if (it_status & I2C_SR1_RXNE) {
     log_event("EV_RXNE\r\n");
+    read_bytes(curr_command);
   }
+
+  log_event("EV_END\r\n");
 }
 
 void I2C1_ER_IRQHandler(void) {
@@ -358,12 +452,36 @@ bool i2c_wait_for_bit_sr1(uint32_t bit) {
   return true;
 }
 
+//int8_t read_from_accelerometer(uint8_t slave_register) {
+//  uint8_t to_send[1] = {slave_register};
+//  uint8_t to_recive[1] = {0};
+//  if (!i2c_write_read(LIS35DE_ADDR, to_send, 1, to_recive, 1)) { to_recive[0] = 0; }
+//
+//  return to_recive[0];
+//}
+
 int8_t read_from_accelerometer(uint8_t slave_register) {
   uint8_t to_send[1] = {slave_register};
-  uint8_t to_recive[1] = {0};
-  if (!i2c_write_read(LIS35DE_ADDR, to_send, 1, to_recive, 1)) { to_recive[0] = 0; }
+  uint8_t *addr = 0;
+  switch (slave_register) {
+    case OUT_X:
+      addr = &XYZ[0];
+      break;
+    case OUT_Y:
+      addr = &XYZ[1];
+      break;
+    case OUT_Z:
+      addr = &XYZ[2];
+      break;
+  }
+  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, addr, 1);
 
-  return to_recive[0];
+  if (!using_i2c) {
+    using_i2c = true;
+    I2C1->CR1 |= I2C_CR1_START;
+  }
+
+  return addr[0];
 }
 
 unsigned calculate_acc_percent(uint8_t slave_register) {
