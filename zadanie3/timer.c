@@ -74,14 +74,16 @@ void setBlueLEDPower(unsigned power_percent) {
 }
 
 void TIM3_IRQHandler(void) {
+  Green2LEDoff();
+
   uint32_t it_status = TIM3->SR & TIM3->DIER;
 
   if (it_status & TIM_SR_UIF) {
     TIM3->SR = ~TIM_SR_UIF;
-    Green2LEDoff();
     set_update_flag();
-    Green2LEDon();
   }
+
+  Green2LEDon();
 }
 
 // Source: https://forbot.pl/blog/kurs-stm32-f1-hal-liczniki-timery-w-praktyce-pwm-id24334

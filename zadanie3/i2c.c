@@ -3,6 +3,7 @@
 #include "i2c.h"
 #include "timer.h"
 #include "dma.h"
+#include "leds.h"
 
 #define I2C_SPEED_HZ 100000
 #define PCLK1_MHZ 16
@@ -87,18 +88,12 @@ i2c_command_t *get_curr_command() {
 }
 
 i2c_command_t *get_next_free_command() {
-//  if ((cyclic_buffer_end == cyclic_buffer_start - 1) ||
-//      ((cyclic_buffer_end == MAX_COMM_SIZE - 1) && (cyclic_buffer_start == 0))) {
-//    return 0;
-//  }
-
   i2c_command_t *next_free = &command_buffer[cyclic_buffer_end];
   if (!next_free->initialised || next_free->finished) {
     cyclic_buffer_end++;
-  } else{
+  } else {
     return 0;
   }
-//  i2c_command_t *next_free = &command_buffer[cyclic_buffer_end++];
 
   if (cyclic_buffer_end == MAX_COMM_SIZE) {
     cyclic_buffer_end = 0;
@@ -132,8 +127,6 @@ void add_to_command_buffer(uint8_t slave_addr,
   c->initialised = true;
   c->after_send = false;
   c->finished = false;
-
-//  I2C1->CR1 |= I2C_CR1_START;
 }
 
 void configurate_i2c() {
@@ -155,24 +148,7 @@ void configurate_i2c() {
   I2C1->CR1 |= I2C_CR1_PE;
 
   enable_interrupts();
-  uint8_t to_send[2] = {
-      LIS35_REG_CR1,
-      LIS35_REG_CR1_ACTIVE |
-          LIS35_REG_CR1_XEN |
-          LIS35_REG_CR1_YEN |
-          LIS35_REG_CR1_ZEN
-  };
-  add_to_command_buffer(LIS35DE_ADDR, to_send, 2, 0, 0);
-//  to_send[0] = OUT_X;
-//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[0], 1);
-//  to_send[0] = OUT_Y;
-//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[1], 1);
-//  to_send[0] = OUT_Z;
-//  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, &XYZ[2], 1);
-
-  using_i2c = true;
-  I2C1->CR1 |= I2C_CR1_START;
-//  config_accelerometer();
+  config_accelerometer();
 }
 
 void update_leds_by_acc() {
@@ -184,34 +160,6 @@ void update_leds_by_acc() {
 int flag_true() {
   return FLAG;
 }
-
-//void I2C1_EV_IRQHandler(void) {
-//  uint16_t it_status = I2C1->SR1;
-//
-//  if (it_status & I2C_SR1_SB) {
-//    log_event("EV_SB\r\n");
-//    i2c_send_addr(LIS35DE_ADDR, WRITE);
-//  } else if (it_status & I2C_SR1_ADDR) {
-//    log_event("EV_ADDR\r\n");
-//    I2C1->SR2;
-//    I2C1->DR = LIS35_REG_CR1;
-//    I2C1->CR2 |= I2C_CR2_ITBUFEN;
-//  } else if (it_status & I2C_SR1_BTF) {
-//    log_event("EV_BTF\r\n");
-//    I2C1->CR1 |= I2C_CR1_STOP;
-//    I2C1->CR2 &= ~(I2C_CR2_ITERREN | I2C_CR2_ITEVTEN);
-//    FLAG = 1;
-//  } else if (it_status & I2C_SR1_TXE) {
-//    log_event("EV_TXE\r\n");
-//    I2C1->DR = LIS35_REG_CR1_ACTIVE |
-//        LIS35_REG_CR1_XEN |
-//        LIS35_REG_CR1_YEN |
-//        LIS35_REG_CR1_ZEN;
-//    I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
-//  } else if (it_status & I2C_SR1_RXNE) {
-//    log_event("EV_RXNE\r\n");
-//  }
-//}
 
 void try_to_send_addr(i2c_command_t *curr_command) {
   if (curr_command->send_size == curr_command->already_sent) {
@@ -265,71 +213,67 @@ void read_bytes(i2c_command_t *curr_command) {
     curr_command->finished = true;
     I2C1->CR2 &= ~I2C_CR2_ITBUFEN;
     using_i2c = false;
-//    I2C1->CR1 |= I2C_CR1_START;
   }
 }
 
 void I2C1_EV_IRQHandler(void) {
+  Green2LEDoff();
+
   uint16_t it_status = I2C1->SR1;
   i2c_command_t *curr_command = get_curr_command();
 
   if (!curr_command) {
-    log_event("EV_NO_CMD\r\n");
+//    log_event("EV_NO_CMD\r\n");
     using_i2c = false;
     return;
   }
 
-  log_event("EV_HANDLER\r\n");
+//  log_event("EV_HANDLER\r\n");
 
   if (it_status & I2C_SR1_SB) {
-    log_event("EV_SB\r\n");
+//    log_event("EV_SB\r\n");
     try_to_send_addr(curr_command);
 
   } else if (it_status & I2C_SR1_ADDR) {
-    log_event("EV_ADDR\r\n");
+//    log_event("EV_ADDR\r\n");
 
     I2C1->SR2;
     try_to_send_bytes(curr_command);
 
   } else if (it_status & I2C_SR1_BTF) {
-    log_event("EV_BTF\r\n");
+//    log_event("EV_BTF\r\n");
 
     if (curr_command->recv_size == 0) {
       curr_command->finished = true;
       using_i2c = false;
       I2C1->CR1 |= I2C_CR1_STOP;
-//      I2C1->CR2 &= ~(I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
       FLAG = 1;
     } else {
       I2C1->CR1 |= I2C_CR1_START;
     }
   } else if (it_status & I2C_SR1_TXE) {
-    log_event("EV_TXE\r\n");
+//    log_event("EV_TXE\r\n");
     send_bytes(curr_command);
 
   } else if (it_status & I2C_SR1_RXNE) {
-    log_event("EV_RXNE\r\n");
+//    log_event("EV_RXNE\r\n");
     read_bytes(curr_command);
   }
 
-  log_event("EV_END\r\n");
+  Green2LEDon();
 }
 
 void I2C1_ER_IRQHandler(void) {
+  Green2LEDoff();
+
   uint32_t it_status = I2C1->SR1;
   log_event("I2c_ER\r\n");
 
-  if (it_status & I2C_SR1_SB) {
-    log_event("ER_SB\r\n");
-  } else if (it_status & I2C_SR1_ADDR) {
-    log_event("ER_ADDR\r\n");
-  } else if (it_status & I2C_SR1_BTF) {
-    log_event("ER_BTF\r\n");
-  } else if (it_status & I2C_SR1_TXE) {
-    log_event("ER_TXE\r\n");
-  } else if (it_status & I2C_SR1_RXNE) {
-    log_event("ER_RXNE\r\n");
-  }
+  using_i2c = false;
+  i2c_command_t *curr_command = get_curr_command();
+  curr_command->finished = true;
+
+  Green2LEDon();
 }
 
 void update_red_by_acc(uint8_t slave_register) {
@@ -356,7 +300,9 @@ void config_accelerometer() {
           LIS35_REG_CR1_ZEN
   };
 
-  i2c_write_read(LIS35DE_ADDR, to_send, 2, 0, 0);
+  add_to_command_buffer(LIS35DE_ADDR, to_send, 2, 0, 0);
+  using_i2c = true;
+  I2C1->CR1 |= I2C_CR1_START;
 }
 
 bool i2c_write_read(uint8_t slave_addr, uint8_t *to_send, int n, uint8_t *to_receive, int m) {
