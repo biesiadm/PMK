@@ -22,12 +22,12 @@
 
 static uint8_t acc_axis_values[3] = {0};
 
-static unsigned calculate_acc_percent(uint8_t slave_register);
+static unsigned calculate_acc_percent(int acc_axis);
 static unsigned calculate_int8_percent(int8_t value);
 
-static void update_red_by_acc(uint8_t slave_register);
-static void update_green_by_acc(uint8_t slave_register);
-static void update_blue_by_acc(uint8_t slave_register);
+static void update_red_by_acc();
+static void update_green_by_acc();
+static void update_blue_by_acc();
 
 void config_accelerometer() {
   uint8_t to_send[2] = {
@@ -41,52 +41,39 @@ void config_accelerometer() {
   enqueue_command(LIS35DE_ADDR, to_send, 2, 0, 0);
 }
 
-int8_t read_from_accelerometer(uint8_t slave_register) {
-  uint8_t to_send[1] = {slave_register};
-  uint8_t *axis_value = 0;
-  switch (slave_register) {
-    case OUT_X:
-      axis_value = &acc_axis_values[X_AXIS];
-      break;
-    case OUT_Y:
-      axis_value = &acc_axis_values[Y_AXIS];
-      break;
-    case OUT_Z:
-      axis_value = &acc_axis_values[Z_AXIS];
-      break;
-    default:
-      return 0;
-  }
-
-  enqueue_command(LIS35DE_ADDR, to_send, 1, axis_value, 1);
-
-  return axis_value[0];
-}
-
 void update_leds_by_acc() {
-  update_red_by_acc(OUT_X);
-  update_green_by_acc(OUT_Y);
-  update_blue_by_acc(OUT_Z);
+  update_red_by_acc();
+  update_green_by_acc();
+  update_blue_by_acc();
 }
 
-void update_red_by_acc(uint8_t slave_register) {
-  unsigned acc_percent = calculate_acc_percent(slave_register);
+void enqueue_read(uint8_t acc_axis_addr, uint8_t *to_recv) {
+  uint8_t to_send[1] = {acc_axis_addr};
+
+  enqueue_command(LIS35DE_ADDR, to_send, 1, to_recv, 1);
+}
+
+void update_red_by_acc() {
+  enqueue_read(OUT_X, &acc_axis_values[X_AXIS]);
+  unsigned acc_percent = calculate_acc_percent(X_AXIS);
   setRedLEDPower(acc_percent);
 }
 
-void update_green_by_acc(uint8_t slave_register) {
-  unsigned acc_percent = calculate_acc_percent(slave_register);
+void update_green_by_acc() {
+  enqueue_read(OUT_Y, &acc_axis_values[Y_AXIS]);
+  unsigned acc_percent = calculate_acc_percent(Y_AXIS);
   setGreenLEDPower(acc_percent);
 }
 
-void update_blue_by_acc(uint8_t slave_register) {
-  unsigned acc_percent = calculate_acc_percent(slave_register);
+void update_blue_by_acc() {
+  enqueue_read(OUT_Z, &acc_axis_values[Z_AXIS]);
+  unsigned acc_percent = calculate_acc_percent(Z_AXIS);
   setBlueLEDPower(acc_percent);
 }
 
 
-unsigned calculate_acc_percent(uint8_t slave_register) {
-  int8_t acc_value = read_from_accelerometer(slave_register);
+unsigned calculate_acc_percent(int acc_axis) {
+  int8_t acc_value = acc_axis_values[acc_axis];
   return calculate_int8_percent(acc_value);
 }
 
