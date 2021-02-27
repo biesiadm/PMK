@@ -18,11 +18,11 @@ void set_clock() {
 
 void configuration() {
   set_clock();
-  configurate_leds();
+  config_leds();
 
-  configurate_i2c();
+  config_i2c();
   config_accelerometer();
-  configurate_timer();
+  config_timer();
 }
 
 int main() {

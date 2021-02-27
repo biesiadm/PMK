@@ -29,7 +29,7 @@ static void i2c_communication_lock();
 static void i2c_communication_unlock();
 static bool i2c_communication_try_lock();
 
-void configurate_i2c() {
+void config_i2c() {
   // Konfiguracja SCL na PB8
   GPIOafConfigure(GPIOB, 8, GPIO_OType_OD,
                   GPIO_Low_Speed, GPIO_PuPd_NOPULL,

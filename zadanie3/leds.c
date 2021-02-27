@@ -12,7 +12,7 @@ void Green2LEDoff() {
   GREEN2_LED_GPIO->BSRR = 1 << (GREEN2_LED_PIN + 16);
 }
 
-void configurate_leds() {
+void config_leds() {
   GPIOoutConfigure(GREEN2_LED_GPIO,
                    GREEN2_LED_PIN,
                    GPIO_OType_PP,

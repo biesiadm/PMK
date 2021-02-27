@@ -21,7 +21,7 @@ static float calc_pwm(float val);
 static void enable_interrupts();
 static void set_update_flag();
 
-void configurate_timer() {
+void config_timer() {
   config_timer_leds();
   enable_interrupts();
 
