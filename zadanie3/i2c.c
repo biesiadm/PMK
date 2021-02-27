@@ -57,7 +57,6 @@ static void i2c_disable_interrupts(uint32_t interrupts);
 static unsigned calculate_acc_percent(uint8_t slave_register);
 static unsigned calculate_int8_percent(int8_t value);
 
-
 void configurate_i2c() {
   // Konfiguracja SCL na PB8
   GPIOafConfigure(GPIOB, 8, GPIO_OType_OD,
@@ -88,6 +87,16 @@ void update_leds_by_acc() {
 
 int check_accelerometer_configurated() {
   return ACCELEROMETER_CONFIGURATED;
+}
+
+void enqueue_command(uint8_t slave_addr, uint8_t *to_send, int send_size,
+                     uint8_t *to_receive, int recv_size) {
+  add_to_command_buffer(slave_addr, to_send, send_size, to_receive, recv_size);
+
+  if (!using_i2c) {
+    using_i2c = true;
+    i2c_send_start();
+  }
 }
 
 void try_to_send_addr(i2c_command_t *curr_command) {
@@ -218,9 +227,7 @@ void config_accelerometer() {
           LIS35_REG_CR1_ZEN
   };
 
-  add_to_command_buffer(LIS35DE_ADDR, to_send, 2, 0, 0);
-  using_i2c = true;
-  i2c_send_start();
+  enqueue_command(LIS35DE_ADDR, to_send, 2, 0, 0);
 }
 
 void i2c_send_addr(uint8_t slave_addr, int mode) {
@@ -266,12 +273,7 @@ int8_t read_from_accelerometer(uint8_t slave_register) {
       break;
   }
 
-  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, axis_value, 1);
-
-  if (!using_i2c) {
-    using_i2c = true;
-    i2c_send_start();
-  }
+  enqueue_command(LIS35DE_ADDR, to_send, 1, axis_value, 1);
 
   return axis_value[0];
 }

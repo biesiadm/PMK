@@ -43,9 +43,8 @@ i2c_command_t *get_curr_command() {
   return curr_command;
 }
 
-void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send,
-                           int send_size, uint8_t *to_receive,
-                           int recv_size) {
+void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send, int send_size,
+                           uint8_t *to_receive, int recv_size) {
   i2c_command_t *c = get_next_free_command();
   if (!c) {
     return;
