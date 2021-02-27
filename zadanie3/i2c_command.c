@@ -2,10 +2,11 @@
 #include <gpio.h>
 #include "i2c_command.h"
 
-#define MAX_COMM_SIZE 128
+#define QUEUE_SIZE 128
+#define MAX_SEND_SIZE 32
 
 typedef struct i2c_command {
-  uint8_t to_send[MAX_COMM_SIZE];
+  uint8_t to_send[MAX_SEND_SIZE];
   uint8_t *to_receive;
   uint8_t slave_addr;
   int send_size;
@@ -17,7 +18,7 @@ typedef struct i2c_command {
   bool finished;
 } i2c_command_t;
 
-static i2c_command_t command_buffer[MAX_COMM_SIZE] = {0};
+static i2c_command_t command_buffer[QUEUE_SIZE] = {0};
 static int cyclic_buffer_start = 0;
 static int cyclic_buffer_end = 0;
 
@@ -30,7 +31,7 @@ i2c_command_t *get_curr_command() {
     cyclic_buffer_start++;
   }
 
-  if (cyclic_buffer_start == MAX_COMM_SIZE) {
+  if (cyclic_buffer_start == MAX_SEND_SIZE) {
     cyclic_buffer_start = 0;
   }
 
@@ -141,7 +142,7 @@ i2c_command_t *get_next_free_command() {
     return 0;
   }
 
-  if (cyclic_buffer_end == MAX_COMM_SIZE) {
+  if (cyclic_buffer_end == MAX_SEND_SIZE) {
     cyclic_buffer_end = 0;
   }
 
