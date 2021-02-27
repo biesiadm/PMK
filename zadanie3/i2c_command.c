@@ -68,11 +68,6 @@ void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send,
   c->finished = false;
 }
 
-//uint8_t *get_to_send(i2c_command_t *command) {
-//  if (!command) { return 0; }
-//  return command->to_send;
-//}
-
 uint8_t get_next_to_send(i2c_command_t *command) {
   if (!command) { return 0; }
   return command->to_send[command->already_sent];
