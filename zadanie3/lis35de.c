@@ -7,9 +7,7 @@
 #define LIS35_REG_CR1_XEN 0x1
 #define LIS35_REG_CR1_YEN 0x2
 #define LIS35_REG_CR1_ZEN 0x4
-#define LIS35_REG_CR1_DR_400HZ 0x80
 #define LIS35_REG_CR1_ACTIVE 0x40
-#define LIS35_REG_CR1_FULL_SCALE 0x20
 
 #define LIS35DE_ADDR 0x1C
 #define OUT_X 0x29
@@ -73,7 +71,6 @@ void update_blue_by_acc() {
   unsigned acc_percent = calculate_acc_percent(Z_AXIS);
   setBlueLEDPower(acc_percent);
 }
-
 
 unsigned calculate_acc_percent(int acc_axis) {
   int8_t acc_value = acc_axis_values[acc_axis];

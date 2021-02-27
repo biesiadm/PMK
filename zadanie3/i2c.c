@@ -155,9 +155,9 @@ void I2C1_ER_IRQHandler(void) {
 
   I2C1->SR1;
 
-  i2c_communication_unlock();
   i2c_command_t *curr_command = get_curr_command();
   set_finished(curr_command);
+  i2c_communication_unlock();
 
   Green2LEDon();
 }

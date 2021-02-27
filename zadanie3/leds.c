@@ -2,9 +2,7 @@
 #include "leds.h"
 
 #define GREEN2_LED_GPIO GPIOA
-
 #define GREEN2_LED_PIN 5
-
 
 void Green2LEDon() {
   GREEN2_LED_GPIO->BSRR = 1 << GREEN2_LED_PIN;
