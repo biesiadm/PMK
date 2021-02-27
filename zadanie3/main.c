@@ -35,8 +35,6 @@ int main() {
   Green2LEDon();
 
   while (1) {
-    if (check_accelerometer_configurated()) {
-      check_updates();
-    }
+    check_updates();
   }
 }

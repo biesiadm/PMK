@@ -21,6 +21,7 @@
 #define Z_AXIS 2
 
 static uint8_t acc_axis_values[3] = {0};
+static volatile int acc_config_enqueued = 0;
 
 static unsigned calculate_acc_percent(int acc_axis);
 static unsigned calculate_int8_percent(int8_t value);
@@ -39,6 +40,7 @@ void config_accelerometer() {
   };
 
   enqueue_command(LIS35DE_ADDR, to_send, 2, 0, 0);
+  acc_config_enqueued = 1;
 }
 
 void update_leds_by_acc() {
@@ -48,6 +50,7 @@ void update_leds_by_acc() {
 }
 
 void enqueue_read(uint8_t acc_axis_addr, uint8_t *to_recv) {
+  if (!acc_config_enqueued) { return; }
   uint8_t to_send[1] = {acc_axis_addr};
 
   enqueue_command(LIS35DE_ADDR, to_send, 1, to_recv, 1);

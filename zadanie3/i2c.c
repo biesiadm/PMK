@@ -11,7 +11,6 @@
 static const int READ = 1;
 static const int WRITE = 0;
 
-static volatile int ACCELEROMETER_CONFIGURATED = 0;
 static bool using_i2c = false;
 
 
@@ -49,10 +48,6 @@ void configurate_i2c() {
   I2C1->CR1 |= I2C_CR1_PE;
 
   enable_interrupts();
-}
-
-int check_accelerometer_configurated() {
-  return ACCELEROMETER_CONFIGURATED;
 }
 
 void enqueue_command(uint8_t slave_addr, uint8_t *to_send, int send_size,
@@ -124,7 +119,6 @@ void try_to_read_or_stop(i2c_command_t *curr_command) {
     set_finished(curr_command);
     using_i2c = false;
     i2c_send_stop();
-    ACCELEROMETER_CONFIGURATED = 1;
   } else {
     i2c_send_start();
   }
