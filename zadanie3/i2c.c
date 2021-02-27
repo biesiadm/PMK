@@ -7,12 +7,10 @@
 #define I2C_SPEED_HZ 100000
 #define PCLK1_MHZ 16
 
-
 static const int READ = 1;
 static const int WRITE = 0;
 
 static bool using_i2c = false;
-
 
 static void enable_interrupts();
 static void try_to_send_addr(i2c_command_t *curr_command);
@@ -27,7 +25,9 @@ static void i2c_send_ack();
 static void i2c_send_nack();
 static void i2c_enable_interrupts(uint32_t interrupts);
 static void i2c_disable_interrupts(uint32_t interrupts);
-
+static void i2c_communication_lock();
+static void i2c_communication_unlock();
+static bool i2c_communication_try_lock();
 
 void configurate_i2c() {
   // Konfiguracja SCL na PB8
@@ -54,8 +54,7 @@ void enqueue_command(uint8_t slave_addr, uint8_t *to_send, int send_size,
                      uint8_t *to_receive, int recv_size) {
   add_to_command_buffer(slave_addr, to_send, send_size, to_receive, recv_size);
 
-  if (!using_i2c) {
-    using_i2c = true;
+  if (i2c_communication_try_lock()) {
     i2c_send_start();
   }
 }
@@ -110,14 +109,14 @@ void read_bytes(i2c_command_t *curr_command) {
     set_last_to_receive(curr_command, I2C1->DR);
     set_finished(curr_command);
     i2c_disable_interrupts(I2C_CR2_ITBUFEN);
-    using_i2c = false;
+    i2c_communication_unlock();
   }
 }
 
 void try_to_read_or_stop(i2c_command_t *curr_command) {
   if (get_recv_size(curr_command) == 0) {
     set_finished(curr_command);
-    using_i2c = false;
+    i2c_communication_unlock();
     i2c_send_stop();
   } else {
     i2c_send_start();
@@ -131,7 +130,7 @@ void I2C1_EV_IRQHandler(void) {
   i2c_command_t *curr_command = get_curr_command();
 
   if (!curr_command) {
-    using_i2c = false;
+    i2c_communication_unlock();
     return;
   }
 
@@ -156,7 +155,7 @@ void I2C1_ER_IRQHandler(void) {
 
   I2C1->SR1;
 
-  using_i2c = false;
+  i2c_communication_unlock();
   i2c_command_t *curr_command = get_curr_command();
   set_finished(curr_command);
 
@@ -195,4 +194,21 @@ void enable_interrupts() {
   i2c_enable_interrupts(I2C_CR2_ITEVTEN | I2C_CR2_ITERREN);
   NVIC_EnableIRQ(I2C1_EV_IRQn);
   NVIC_EnableIRQ(I2C1_ER_IRQn);
+}
+
+static void i2c_communication_lock() {
+  using_i2c = true;
+}
+
+static void i2c_communication_unlock() {
+  using_i2c = false;
+}
+
+static bool i2c_communication_try_lock() {
+  if (!using_i2c) {
+    i2c_communication_lock();
+    return true;
+  }
+
+  return false;
 }
