@@ -3,6 +3,7 @@
 #include "dma.h"
 #include "timer.h"
 #include "i2c.h"
+#include "lis35de.h"
 
 static void set_clock();
 static void configuration();
@@ -25,6 +26,7 @@ void configuration() {
   configurate_leds();
 
   configurate_i2c();
+  config_accelerometer();
   configurate_timer();
 }
 

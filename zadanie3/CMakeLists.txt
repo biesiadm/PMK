@@ -10,7 +10,7 @@ add_executable(zadanie3
         dma.c dma.h
         timer.c timer.h
         i2c.c i2c.h
-        utils.c utils.h i2c_command.c i2c_command.h)
+        utils.c utils.h i2c_command.c i2c_command.h lis35de.c lis35de.h)
 
 add_definitions(-DSTM32F411xE)
 include_directories(/opt/arm/stm32/inc)
