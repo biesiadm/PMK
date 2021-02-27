@@ -1,7 +1,8 @@
 #ifndef ZADANIE3__I2C_H_
 #define ZADANIE3__I2C_H_
 
-int flag_true();
+//int flag_true();
+int check_accelerometer_configurated();
 void configurate_i2c();
 void update_leds_by_acc();
 void I2C1_EV_IRQHandler(void);

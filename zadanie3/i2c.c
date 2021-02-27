@@ -21,12 +21,19 @@
 #define OUT_Y 0x2B
 #define OUT_Z 0x2D
 
-#define MAX_COMM_SIZE 16
+#define X_AXIS 0
+#define Y_AXIS 1
+#define Z_AXIS 2
 
-volatile int FLAG = 0;
+#define MAX_COMM_SIZE 16
 
 static const int READ = 1;
 static const int WRITE = 0;
+
+static volatile int ACCELEROMETER_CONFIGURATED = 0;
+static bool using_i2c = false;
+
+static uint8_t acc_axis_values[3] = {0};
 
 static void update_red_by_acc(uint8_t slave_register);
 static void update_green_by_acc(uint8_t slave_register);
@@ -50,8 +57,6 @@ static void i2c_disable_interrupts(uint32_t interrupts);
 static unsigned calculate_acc_percent(uint8_t slave_register);
 static unsigned calculate_int8_percent(int8_t value);
 
-static uint8_t XYZ[3] = {0};
-static bool using_i2c = false;
 
 void configurate_i2c() {
   // Konfiguracja SCL na PB8
@@ -81,8 +86,8 @@ void update_leds_by_acc() {
   update_blue_by_acc(OUT_Z);
 }
 
-int flag_true() {
-  return FLAG;
+int check_accelerometer_configurated() {
+  return ACCELEROMETER_CONFIGURATED;
 }
 
 void try_to_send_addr(i2c_command_t *curr_command) {
@@ -144,7 +149,7 @@ void try_to_read_or_stop(i2c_command_t *curr_command) {
     set_finished(curr_command);
     using_i2c = false;
     i2c_send_stop();
-    FLAG = 1;
+    ACCELEROMETER_CONFIGURATED = 1;
   } else {
     i2c_send_start();
   }
@@ -248,27 +253,27 @@ void i2c_disable_interrupts(uint32_t interrupts) {
 
 int8_t read_from_accelerometer(uint8_t slave_register) {
   uint8_t to_send[1] = {slave_register};
-  uint8_t *addr = 0;
+  uint8_t *axis_value = 0;
   switch (slave_register) {
     case OUT_X:
-      addr = &XYZ[0];
+      axis_value = &acc_axis_values[X_AXIS];
       break;
     case OUT_Y:
-      addr = &XYZ[1];
+      axis_value = &acc_axis_values[Y_AXIS];
       break;
     case OUT_Z:
-      addr = &XYZ[2];
+      axis_value = &acc_axis_values[Z_AXIS];
       break;
   }
 
-  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, addr, 1);
+  add_to_command_buffer(LIS35DE_ADDR, to_send, 1, axis_value, 1);
 
   if (!using_i2c) {
     using_i2c = true;
     i2c_send_start();
   }
 
-  return addr[0];
+  return axis_value[0];
 }
 
 unsigned calculate_acc_percent(uint8_t slave_register) {

@@ -73,11 +73,6 @@ uint8_t get_next_to_send(i2c_command_t *command) {
   return command->to_send[command->already_sent];
 }
 
-uint8_t *get_to_receive(i2c_command_t *command) {
-  if (!command) { return 0; }
-  return command->to_receive;
-}
-
 uint8_t get_slave_addr(i2c_command_t *command) {
   if (!command) { return 0; }
   return command->slave_addr;
@@ -103,19 +98,9 @@ int get_already_recv(i2c_command_t *command) {
   return command->already_recv;
 }
 
-bool check_if_initialised(i2c_command_t *command) {
-  if (!command) { return false; }
-  return command->initialised;
-}
-
 bool check_if_after_send(i2c_command_t *command) {
   if (!command) { return false; }
   return command->after_send;
-}
-
-bool check_if_finished(i2c_command_t *command) {
-  if (!command) { return false; }
-  return command->finished;
 }
 
 void set_after_send(i2c_command_t *command) {
