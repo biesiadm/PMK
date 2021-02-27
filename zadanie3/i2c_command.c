@@ -46,26 +46,26 @@ i2c_command_t *get_curr_command() {
 
 void add_to_command_buffer(uint8_t slave_addr, uint8_t *to_send, int send_size,
                            uint8_t *to_receive, int recv_size) {
-  i2c_command_t *c = get_next_free_command();
-  if (!c) {
+  i2c_command_t *command = get_next_free_command();
+  if (!command) {
     return;
   }
 
-  c->slave_addr = slave_addr;
+  command->slave_addr = slave_addr;
 
-  c->send_size = send_size;
+  command->send_size = send_size;
   for (int i = 0; i < send_size; i++) {
-    c->to_send[i] = to_send[i];
+    command->to_send[i] = to_send[i];
   }
 
-  c->to_receive = to_receive;
-  c->recv_size = recv_size;
+  command->to_receive = to_receive;
+  command->recv_size = recv_size;
 
-  c->already_sent = 0;
-  c->already_recv = 0;
-  c->initialised = true;
-  c->after_send = false;
-  c->finished = false;
+  command->already_sent = 0;
+  command->already_recv = 0;
+  command->initialised = true;
+  command->after_send = false;
+  command->finished = false;
 }
 
 uint8_t get_next_to_send(i2c_command_t *command) {
