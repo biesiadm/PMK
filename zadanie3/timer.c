@@ -3,7 +3,6 @@
 #include <math.h>
 #include "timer.h"
 #include "leds.h"
-//#include "i2c.h"
 #include "lis35de.h"
 
 #define RED_LED_GPIO    GPIOA
